@@ -1,0 +1,3 @@
+graft djangosnapshotpublisher
+prune config
+global-exclude __pycache__
