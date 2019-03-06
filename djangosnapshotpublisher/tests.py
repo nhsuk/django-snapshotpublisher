@@ -413,6 +413,16 @@ class PublisherAPITestCase(TestCase):
         response = self.publisher_api.get_document_from_content_release('site1', content_release.uuid, document_key)
         self.assertEquals(response['status'], 'success')
         self.assertEquals(response['content'], release_document)
+    
+        """ Get ReleaseDocument with content_type """
+        response = self.publisher_api.get_document_from_content_release('site1', content_release.uuid, document_key, 'page')
+        self.assertEquals(response['status'], 'error')
+        self.assertEquals(response['error_code'], 'release_document_does_not_exist')
+        release_document.content_type = 'page'
+        release_document.save()
+        response = self.publisher_api.get_document_from_content_release('site1', content_release.uuid, document_key, 'page')
+        self.assertEquals(response['status'], 'success')
+        self.assertEquals(response['content'], release_document)
 
     def test_publish_document_to_content_release(self):
         document_key = 'key1'
@@ -450,6 +460,20 @@ class PublisherAPITestCase(TestCase):
         release_document = ReleaseDocument.objects.get(content_release=content_release, document_key=document_key)
         self.assertEquals(release_document.document_json, document_json)
 
+        """ Store ReleaseDocument with content_type """
+        document_json = json.dumps({'page_title': 'Test3 page title'})
+        response = self.publisher_api.publish_document_to_content_release(
+            'site1',
+            content_release.uuid,
+            document_json,
+            document_key,
+            'page',
+        )
+        self.assertEquals(response['status'], 'success')
+        response = self.publisher_api.get_document_from_content_release('site1', content_release.uuid, document_key, 'page')
+        self.assertEquals(response['status'], 'success')
+        self.assertEquals(response['content'], release_document)
+
     def test_unpublish_document_from_content_release(self):
         document_key = 'key1'
 
@@ -465,7 +489,7 @@ class PublisherAPITestCase(TestCase):
         self.assertEquals(response['status'], 'error')
         self.assertEquals(response['error_code'], 'release_document_does_not_exist')
 
-        """ Get ReleaseDocument """
+        """ Unpublish ReleaseDocument """
         document_json = json.dumps({'page_title': 'Test2 page title'})
         response = self.publisher_api.publish_document_to_content_release(
             'site1',
@@ -477,6 +501,24 @@ class PublisherAPITestCase(TestCase):
         release_document = ReleaseDocument.objects.filter(content_release=content_release, document_key=document_key)
         self.assertEquals(response['status'], 'success')
         self.assertFalse(release_document.exists())
+
+        """ Unpublish ReleaseDocument content_type"""
+        document_json = json.dumps({'page_title': 'Test2 page title'})
+        response = self.publisher_api.publish_document_to_content_release(
+            'site1',
+            content_release.uuid,
+            document_json,
+            document_key,
+            'page',
+        )
+        response = self.publisher_api.unpublish_document_from_content_release('site1', content_release.uuid, document_key)
+        self.assertEquals(response['status'], 'error')
+        self.assertEquals(response['error_code'], 'release_document_does_not_exist')
+        response = self.publisher_api.unpublish_document_from_content_release('site1', content_release.uuid, document_key, 'page')
+        release_document = ReleaseDocument.objects.filter(content_release=content_release, document_key=document_key, content_type='page')
+        self.assertEquals(response['status'], 'success')
+        self.assertFalse(release_document.exists())
+
 
 class PublisherAPIJsonTestCase(TestCase):
 
@@ -613,4 +655,5 @@ class PublisherAPIJsonTestCase(TestCase):
             'document_key': document_key,
             'document_json': document_json,
             'content_release_uuid': str(content_release.uuid),
+            'content_type': 'content',
         })

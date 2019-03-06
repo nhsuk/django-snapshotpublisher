@@ -83,6 +83,7 @@ class ReleaseDocument(models.Model):
         null=False,
         on_delete=models.CASCADE,
     )
+    content_type = models.SlugField(max_length=100, default='content')
     document_json = models.TextField(null=True)
     objects = ReleaseDocumentManager()
 

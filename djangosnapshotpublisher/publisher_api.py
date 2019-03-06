@@ -179,17 +179,21 @@ class PublisherAPI:
             content_releases = content_releases.filter(status=status)
         return self.send_response('success', content_releases)
 
-    def get_document_from_content_release(self, site_code, release_uuid, document_key):
+    def get_document_from_content_release(self, site_code, release_uuid, document_key, content_type='content'):
         try:
             content_release = ContentRelease.objects.get(site_code=site_code, uuid=release_uuid)
-            release_document = ReleaseDocument.objects.get(content_release=content_release, document_key=document_key)
+            release_document = ReleaseDocument.objects.get(
+                content_release=content_release,
+                document_key=document_key,
+                content_type=content_type,
+            )
             return self.send_response('success', release_document)
         except ContentRelease.DoesNotExist:
             return self.send_response('content_release_does_not_exist')
         except ReleaseDocument.DoesNotExist:
             return self.send_response('release_document_does_not_exist')
 
-    def publish_document_to_content_release(self, site_code, release_uuid, document_json, document_key):
+    def publish_document_to_content_release(self, site_code, release_uuid, document_json, document_key, content_type='content'):
         try:
             content_release = ContentRelease.objects.get(site_code=site_code, uuid=release_uuid)
             release_document, created = ReleaseDocument.objects.update_or_create(
@@ -197,16 +201,21 @@ class PublisherAPI:
                 document_key=document_key,
                 defaults={
                     'document_json': document_json,
+                    'content_type': content_type,
                 },
             )
             return self.send_response('success', {'created': created})
         except ContentRelease.DoesNotExist:
             return self.send_response('content_release_does_not_exist')
 
-    def unpublish_document_from_content_release(self, site_code, release_uuid, document_key):
+    def unpublish_document_from_content_release(self, site_code, release_uuid, document_key, content_type='content'):
         try:
             content_release = ContentRelease.objects.get(site_code=site_code, uuid=release_uuid)
-            release_document = ReleaseDocument.objects.get(content_release=content_release, document_key=document_key)
+            release_document = ReleaseDocument.objects.get(
+                content_release=content_release,
+                document_key=document_key,
+                content_type=content_type,
+            )
             release_document.delete()
             return self.send_response('success')
         except ContentRelease.DoesNotExist:
