@@ -17,3 +17,9 @@ class ContentReleaseManager(models.Manager):
                 status=1,
                 publish_datetime__lt=timezone.now(),
             )
+
+    def is_published(self, uuid):
+        return self.get_queryset().filter(
+                uuid=uuid,
+                publish_datetime__lt=timezone.now(),
+            ).exists()

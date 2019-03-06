@@ -39,7 +39,7 @@ def valide_version(value):
 class ContentRelease(models.Model):
     uuid = models.UUIDField(max_length=255, unique=True, default=uuid.uuid4, editable=False)
     version = models.CharField(max_length=20, unique=True)
-    title = models.CharField(max_length=100, unique=True)
+    title = models.CharField(max_length=100)
     site_code = models.SlugField(max_length=100)
     status = models.IntegerField(choices=CONTENT_RELEASE_STATUS, default=0)
     publish_datetime = models.DateTimeField(blank=True, null=True,)

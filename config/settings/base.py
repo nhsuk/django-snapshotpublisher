@@ -154,15 +154,13 @@ STATIC_URL = '/static/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 MEDIA_URL = '/media/'
 
-# Wagtail settings
-
 """ Secret Key & Site ID """
 SITE_ID = 1
 SECRET_KEY = 'y)0gf&7tu8*$*ex^is7^1n^+nx1r=s6b)^99y3(j#3t658fs78'
 
 SITE_ENV = os.environ.get('SITE_ENV', 'db')
 
-# Base URL to use when referring to full URLs within the Wagtail admin backend -
+# Base URL to use when referring to full URLs within the django admin backend -
 # e.g. in notification emails. Don't include '/admin' or a trailing slash
 BASE_URL = 'http://example.com'
 # DEFAULT_FILE_STORAGE = 'storages.backends.azure_storage.AzureStorage'
