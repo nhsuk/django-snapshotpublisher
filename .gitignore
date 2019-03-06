@@ -117,3 +117,9 @@ web/
 *.ipynb
 
 docker-compose-postgres.yml
+
+# pylint config
+.pylintrc
+
+# docmentations next cersion
+docs/index.nextversion.md

@@ -1,3 +1,8 @@
+"""
+.. module:: djangosnapshotpublisher.publisher_api
+   :synopsis: PublisherAPI
+"""
+
 from datetime import datetime
 import json
 
@@ -26,13 +31,16 @@ ERROR_STATUS_CODE = {
 
 
 class PublisherAPI:
+    """ PublisherAPI """
 
     def __init__(self, api_type='django'):
         if api_type not in API_TYPES:
-            raise(_('Invalide type, only this api_types are available: {}'.format(', '.join(API_TYPES))))
+            raise(_('Invalide type, only this api_types are available: {}'.format(
+                ', '.join(API_TYPES))))
         self.api_type = api_type
 
     def send_response(self, status_code, data=None):
+        """ send_response """
         if status_code == 'success':
             response = {
                 'status': 'success',
@@ -56,8 +64,9 @@ class PublisherAPI:
 
 
     def add_content_release(self, site_code, title, version, based_on_release_uuid=None):
+        """ add_content_release """
         try:
-            release = ContentRelease.objects.get(
+            ContentRelease.objects.get(
                 site_code=site_code,
                 title=title,
                 version=version,
@@ -67,7 +76,8 @@ class PublisherAPI:
             base_release = None
             if based_on_release_uuid is not None:
                 try:
-                    base_release = ContentRelease.objects.get(site_code=site_code, uuid=based_on_release_uuid)
+                    base_release = ContentRelease.objects.get(
+                        site_code=site_code, uuid=based_on_release_uuid)
                 except ContentRelease.DoesNotExist:
                     return self.send_response('base_content_release_does_not_exist')
             content_release = ContentRelease(
@@ -77,16 +87,19 @@ class PublisherAPI:
                 base_release=base_release,
             )
             content_release.save()
+            # TODO copy all children from base release to this release.
             return self.send_response('success', content_release)
 
     def remove_content_release(self, site_code, release_uuid):
+        """ remove_content_release """
         try:
             ContentRelease.objects.get(site_code=site_code, uuid=release_uuid).delete()
             return self.send_response('success')
         except ContentRelease.DoesNotExist:
             return self.send_response('content_release_does_not_exist')
-    
+
     def update_content_release(self, site_code, release_uuid, title=None, version=None):
+        """ update_content_release """
         if not title and not version:
             return self.send_response('content_release_title_version_not_defined')
         try:
@@ -99,23 +112,24 @@ class PublisherAPI:
             return self.send_response('success')
         except ContentRelease.DoesNotExist:
             return self.send_response('content_release_does_not_exist')
- 
+
     def get_content_release_details(self, site_code, release_uuid):
+        """ get_content_release_details """
         try:
             content_release = ContentRelease.objects.get(site_code=site_code, uuid=release_uuid)
             return self.send_response('success', content_release)
         except ContentRelease.DoesNotExist:
             return self.send_response('content_release_does_not_exist')
-    
 
     def get_live_content_release(self, site_code):
+        """ get_live_content_release """
         live_content_release = ContentRelease.objects.live(site_code)
         if live_content_release:
             return self.send_response('success', live_content_release)
-        else:
-            return self.send_response('no_content_release_live')
+        return self.send_response('no_content_release_live')
 
     def set_live_content_release(self, site_code, release_uuid):
+        """ set_live_content_release """
         try:
             content_release = ContentRelease.objects.get(site_code=site_code, uuid=release_uuid)
             content_release.status = 1
@@ -126,6 +140,7 @@ class PublisherAPI:
             return self.send_response('content_release_does_not_exist')
 
     def freeze_content_release(self, site_code, release_uuid, publish_datetime):
+        """ freeze_content_release """
         try:
             publish_datetime = datetime.strptime(publish_datetime, DATETIME_FORMAT)
             if publish_datetime < timezone.now():
@@ -141,6 +156,7 @@ class PublisherAPI:
             return self.send_response('wrong_datetime_format')
 
     def unfreeze_content_release(self, site_code, release_uuid):
+        """ unfreeze_content_release """
         try:
             content_release = ContentRelease.objects.get(site_code=site_code, uuid=release_uuid)
             if ContentRelease.objects.is_published(release_uuid):
@@ -152,6 +168,7 @@ class PublisherAPI:
             return self.send_response('content_release_does_not_exist')
 
     def archive_content_release(self, site_code, release_uuid):
+        """ archive_content_release """
         try:
             content_release = ContentRelease.objects.get(site_code=site_code, uuid=release_uuid)
             if not ContentRelease.objects.is_published(release_uuid):
@@ -163,6 +180,7 @@ class PublisherAPI:
             return self.send_response('content_release_does_not_exist')
 
     def unarchive_content_release(self, site_code, release_uuid):
+        """ unarchive_content_release """
         try:
             content_release = ContentRelease.objects.get(site_code=site_code, uuid=release_uuid)
             if not ContentRelease.objects.is_published(release_uuid):
@@ -174,12 +192,15 @@ class PublisherAPI:
             return self.send_response('content_release_does_not_exist')
 
     def list_content_releases(self, site_code, status=None):
+        """ list_content_releases """
         content_releases = ContentRelease.objects.filter(site_code=site_code)
         if status:
             content_releases = content_releases.filter(status=status)
         return self.send_response('success', content_releases)
 
-    def get_document_from_content_release(self, site_code, release_uuid, document_key, content_type='content'):
+    def get_document_from_content_release(
+            self, site_code, release_uuid, document_key, content_type='content'):
+        """get_document_from_content_release """
         try:
             content_release = ContentRelease.objects.get(site_code=site_code, uuid=release_uuid)
             release_document = ReleaseDocument.objects.get(
@@ -193,7 +214,9 @@ class PublisherAPI:
         except ReleaseDocument.DoesNotExist:
             return self.send_response('release_document_does_not_exist')
 
-    def publish_document_to_content_release(self, site_code, release_uuid, document_json, document_key, content_type='content'):
+    def publish_document_to_content_release(
+            self, site_code, release_uuid, document_json, document_key, content_type='content'):
+        """ publish_document_to_content_release """
         try:
             content_release = ContentRelease.objects.get(site_code=site_code, uuid=release_uuid)
             release_document, created = ReleaseDocument.objects.update_or_create(
@@ -208,7 +231,9 @@ class PublisherAPI:
         except ContentRelease.DoesNotExist:
             return self.send_response('content_release_does_not_exist')
 
-    def unpublish_document_from_content_release(self, site_code, release_uuid, document_key, content_type='content'):
+    def unpublish_document_from_content_release(
+            self, site_code, release_uuid, document_key, content_type='content'):
+        """ unpublish_document_from_content_release """
         try:
             content_release = ContentRelease.objects.get(site_code=site_code, uuid=release_uuid)
             release_document = ReleaseDocument.objects.get(

@@ -1,3 +1,7 @@
+"""
+.. module:: djangosnapshotpublisher.models
+"""
+
 import re
 import uuid
 
@@ -6,7 +10,7 @@ from django.db import models
 from django.forms.models import model_to_dict
 from django.utils.translation import gettext_lazy as _
 
-from .manager import ContentReleaseManager, ReleaseDocumentManager
+from .manager import ContentReleaseManager #, ReleaseDocumentManager
 
 
 CONTENT_RELEASE_STATUS = (
@@ -16,27 +20,31 @@ CONTENT_RELEASE_STATUS = (
 )
 
 def valide_version(value):
+    """ valide_version """
     valid = True
-    match_version = re.match( r'^([0-9])+(\.[0-9]+)*$',value)
+    match_version = re.match(r'^([0-9])+(\.[0-9]+)*$', value)
     if match_version:
         version_values = value.split('.')
         if all(v == '0' for v in version_values):
             raise ValidationError(
-                _('%(value)s cannot only contain 0, e.g: 0.1'), code='version_none',
+                _('%(value)s cannot only contain 0, e.g: 0.1'),
+                code='version_none',
                 params={'value': value},
             )
             valid = False
     else:
         raise ValidationError(
-            _('%(value)s is not a correction, e.g: 2.1'), code='version_wrong_format',
+            _('%(value)s is not a correction, e.g: 2.1'),
+            code='version_wrong_format',
             params={'value': value},
         )
         valid = False
-    
+
     return valid
 
 
 class ContentRelease(models.Model):
+    """ ContentRelease """
     uuid = models.UUIDField(max_length=255, unique=True, default=uuid.uuid4, editable=False)
     version = models.CharField(max_length=20, unique=True)
     title = models.CharField(max_length=100)
@@ -55,6 +63,7 @@ class ContentRelease(models.Model):
         return self.title
 
     def save(self, *args, **kwargs):
+        """ save """
         if valide_version(self.version):
             is_version_conflict_with_live = self.__class__.objects.filter(
                 site_code=self.site_code,
@@ -64,11 +73,13 @@ class ContentRelease(models.Model):
 
             if is_version_conflict_with_live:
                 raise ValidationError(
-                    _('Conflict version with frozen or archived release(s), try bigger number'), code='version_conflict_live_releases',
+                    _('Conflict version with frozen or archived release(s), try bigger number'),
+                    code='version_conflict_live_releases',
                 )
         super(ContentRelease, self).save(*args, **kwargs)
 
     def to_dict(self):
+        """ to_dict """
         instance_dict = model_to_dict(self)
         instance_dict['uuid'] = self.uuid
         instance_dict['status'] = self.get_status_display()
@@ -76,6 +87,7 @@ class ContentRelease(models.Model):
 
 
 class ReleaseDocument(models.Model):
+    """ ReleaseDocument """
     document_key = models.SlugField(max_length=100, unique=True)
     content_release = models.ForeignKey(
         'ContentRelease',
@@ -85,13 +97,15 @@ class ReleaseDocument(models.Model):
     )
     content_type = models.SlugField(max_length=100, default='content')
     document_json = models.TextField(null=True)
-    objects = ReleaseDocumentManager()
+    # objects = ReleaseDocumentManager()
 
     class Meta:
+        """ Meta """
         unique_together = (('document_key', 'content_release'),)
 
     def to_dict(self):
+        """ to_dict """
         instance_dict = model_to_dict(self)
         instance_dict['content_release_uuid'] = self.content_release.uuid
-        del(instance_dict['content_release'])
+        instance_dict.pop('content_release')
         return instance_dict

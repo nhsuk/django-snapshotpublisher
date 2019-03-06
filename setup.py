@@ -1,20 +1,21 @@
+""" setup """
 from os import path
 from setuptools import find_packages, setup
 from djangosnapshotpublisher import __VERSION__
 
-this_directory = path.abspath(path.dirname(__file__))
-with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
-    long_description = f.read()
+THIS_DIRECTORY = path.abspath(path.dirname(__file__))
+with open(path.join(THIS_DIRECTORY, 'README.md'), encoding='utf-8') as f:
+    LONG_DESCRIPTION = f.read()
 
 setup(
-    name='djangosnapshotpublisher',
-    version='0.1',
+    name='django-snapshotpublisher',
+    version=__VERSION__,
     packages=find_packages(),
     include_package_data=True,
     license='MIT',
-    url='[[GITHUB_URL]]'
-    description='[[TO_DO_ADD_DESCRIPTION]]',
-    long_description=long_description,
+    url='https://github.com/yohanlebret/django-snapshotpublisher',
+    description='Django Appplication API to store  and get Document for a release',
+    long_description=LONG_DESCRIPTION,
     long_description_content_type='text/markdown',
     author='Yohan Lebret',
     author_email='yohan.lebret@gmail.com',

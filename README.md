@@ -1,18 +1,27 @@
 Django - Snapshot Publisher
 =============================
 
-[[TO_DO_ADD_DESCRIPTION]]
+Django Appplication API to store  and get Document for a release
 
 Quick start
 -----------
 
-[[TO_DO]]
+1. Add "djangosnapshotpublisher" to your INSTALLED_APPS setting like this:
+
+```python
+INSTALLED_APPS = [
+    'djangosnapshotpublisher',
+    ...
+]
+```
+
+2. Run `python manage.py migrate` to create the djangosnapshotpublisher models.
 
 
 How to use
 ----------
 
-[[TO_DO]]
+Read the [documentation guide][docs-index]
 
 
 How to contribute
@@ -37,3 +46,5 @@ Create super user:
 ```
 docker-compose run --rm web python manage.py createsuperuser
 ```
+
+[docs-index]: https://github.com/yohanlebret/django-snapshotpublisher/blob/master/docs/index.md

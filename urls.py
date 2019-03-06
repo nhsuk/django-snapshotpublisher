@@ -1,11 +1,9 @@
+""" urls """
 from __future__ import absolute_import, unicode_literals
 
 from django.conf import settings
-from django.conf.urls import include, url
-from django.urls import include, path, re_path
+from django.urls import include, path
 from django.contrib import admin
-from django.http import HttpResponse
-from django.views.static import serve
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -22,5 +20,5 @@ if settings.DEBUG:
 
     # Django debug toolbar
     urlpatterns = [
-        url(r'^__debug__/', include(debug_toolbar.urls)),
+        path(r'^__debug__/', include(debug_toolbar.urls)),
     ] + urlpatterns
