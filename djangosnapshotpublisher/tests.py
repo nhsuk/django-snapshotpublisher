@@ -2,10 +2,11 @@ import json
 import uuid
 
 from django.core.exceptions import ValidationError
+from django.db.utils import IntegrityError
 from django.test import TestCase
 from django.utils import timezone
 
-from djangosnapshotpublisher.models import ContentRelease
+from djangosnapshotpublisher.models import ContentRelease, ReleaseDocument
 from djangosnapshotpublisher.publisher_api import PublisherAPI, DATETIME_FORMAT
 
 
@@ -59,6 +60,40 @@ class ContentReleaseTestCase(TestCase):
             self.fail('Validation Error should be raised')
         except ValidationError as e:
             self.assertEquals('version_conflict_live_releases', e.code)
+
+
+class ReleaseDocumentTestCase(TestCase):
+
+    def setUp(self):
+        self.document_key1 = 'key1'
+
+    def test_unique_document_per_release(self):
+        """ Create ContentRelease """
+        content_release = ContentRelease(
+            version='0.0.1',
+            title='test1',
+            site_code='site1',
+        )
+        content_release.save()
+
+        """ Store ReleaseDocument """
+        data = {'page_title': 'Test page title'}
+        release_document = ReleaseDocument(
+            document_key=self.document_key1,
+            content_release=content_release,
+            document_json=json.dumps(data),
+        )
+        release_document.save()
+
+        """ Try to store a new ReleaseDocument with same  key and content_release """
+        with self.assertRaises(IntegrityError):
+            data = {'page_title': 'Test2 page title'}
+            release_document = ReleaseDocument(
+                document_key=self.document_key1,
+                content_release=content_release,
+                document_json=json.dumps(data),
+            )
+            release_document.save()
 
 
 class PublisherAPITestCase(TestCase):
@@ -146,12 +181,12 @@ class PublisherAPITestCase(TestCase):
         self.assertEquals(response['content'], content_release)
     
     def test_get_live_content_release(self):
-        """ No Release """
+        """ No ContentRelease """
         response = self.publisher_api.get_live_content_release('site1')
         self.assertEquals(response['status'], 'error')
         self.assertEquals(response['error_code'], 'no_content_release_live')
 
-        """ No release in the past or null"""
+        """ No ContentRelease in the past or null"""
         response = self.publisher_api.add_content_release('site1', 'title1', '0.0.1')
         content_release = response['content']
         response = self.publisher_api.get_live_content_release('site1')
@@ -163,7 +198,7 @@ class PublisherAPITestCase(TestCase):
         self.assertEquals(response['status'], 'error')
         self.assertEquals(response['error_code'], 'no_content_release_live')
 
-        """ Release in the past archived or pending """
+        """ ContentRelease in the past archived or pending """
         content_release.publish_datetime = timezone.now() - timezone.timedelta(days=1)
         content_release.save()
         response = self.publisher_api.get_live_content_release('site1')
@@ -175,7 +210,7 @@ class PublisherAPITestCase(TestCase):
         self.assertEquals(response['status'], 'error')
         self.assertEquals(response['error_code'], 'no_content_release_live')
 
-        """ Get live release """
+        """ Get live ContentRelease """
         content_release.status = 1
         content_release.save()
         response = self.publisher_api.get_live_content_release('site1')
@@ -193,12 +228,12 @@ class PublisherAPITestCase(TestCase):
         self.assertEquals(response['content'], content_release2)
     
     def test_set_live_content_release(self):
-        """ No Release """
+        """ No ContentRelease """
         response = self.publisher_api.set_live_content_release('site1', uuid.uuid4())
         self.assertEquals(response['status'], 'error')
         self.assertEquals(response['error_code'], 'content_release_does_not_exist')
 
-        """ Set the release live """
+        """ Set the ContentRelease live """
         response = self.publisher_api.add_content_release('site1', 'title1', '0.0.1')
         content_release = response['content']
         response = self.publisher_api.set_live_content_release('site1', content_release.uuid)
@@ -209,7 +244,7 @@ class PublisherAPITestCase(TestCase):
         self.assertGreater(content_release.publish_datetime, timezone.now() - timezone.timedelta(minutes=5))
 
     def test_freeze_content_release(self):
-        """ No Release """
+        """ No ContentRelease """
         response = self.publisher_api.freeze_content_release(
             'site1',
             uuid.uuid4(),
@@ -238,7 +273,7 @@ class PublisherAPITestCase(TestCase):
         self.assertEquals(response['status'], 'error')
         self.assertEquals(response['error_code'], 'publishdatetime_in_past')
 
-        """ Freeze the release """
+        """ Freeze the ContentRelease """
         response = self.publisher_api.freeze_content_release(
             'site1',
             content_release.uuid,
@@ -253,12 +288,12 @@ class PublisherAPITestCase(TestCase):
         )
 
     def test_unfreeze_content_release(self):
-        """ No Release """
+        """ No ContentRelease """
         response = self.publisher_api.unfreeze_content_release('site1', uuid.uuid4())
         self.assertEquals(response['status'], 'error')
         self.assertEquals(response['error_code'], 'content_release_does_not_exist')
 
-        """ Unfreeze the release """
+        """ Unfreeze the ContentRelease """
         response = self.publisher_api.add_content_release('site1', 'title1', '0.0.1')
         content_release = response['content']
         response = self.publisher_api.unfreeze_content_release('site1', content_release.uuid)
@@ -271,7 +306,7 @@ class PublisherAPITestCase(TestCase):
         self.assertEquals(response['status'], 'success')
         self.assertEquals(content_release.status, 0)
 
-        """ Release is published """
+        """ ContentRelease is published """
         content_release.publish_datetime = self.datetime_past
         content_release.save()
         response = self.publisher_api.unfreeze_content_release('site1', content_release.uuid)
@@ -279,12 +314,12 @@ class PublisherAPITestCase(TestCase):
         self.assertEquals(response['error_code'], 'content_release_publish')
 
     def test_archive_content_release(self):
-        """ No Release """
+        """ No ContentRelease """
         response = self.publisher_api.archive_content_release('site1', uuid.uuid4())
         self.assertEquals(response['status'], 'error')
         self.assertEquals(response['error_code'], 'content_release_does_not_exist')
 
-        """ Release is not published """
+        """ ContentRelease is not published """
         response = self.publisher_api.add_content_release('site1', 'title1', '0.0.1')
         content_release = response['content']
         response = self.publisher_api.archive_content_release('site1', content_release.uuid)
@@ -296,7 +331,7 @@ class PublisherAPITestCase(TestCase):
         self.assertEquals(response['status'], 'error')
         self.assertEquals(response['error_code'], 'content_release_not_publish')
 
-        """ Archive the release """
+        """ Archive the ContentRelease """
         content_release.publish_datetime = self.datetime_past
         content_release.save()
         response = self.publisher_api.archive_content_release('site1', content_release.uuid)
@@ -305,12 +340,12 @@ class PublisherAPITestCase(TestCase):
         self.assertEquals(content_release.status, 2)
     
     def test_unarchive_content_release(self):
-        """ No Release """
+        """ No ContentRelease """
         response = self.publisher_api.unarchive_content_release('site1', uuid.uuid4())
         self.assertEquals(response['status'], 'error')
         self.assertEquals(response['error_code'], 'content_release_does_not_exist')
 
-        """ Release is not published """
+        """ ContentRelease is not published """
         response = self.publisher_api.add_content_release('site1', 'title1', '0.0.1')
         content_release = response['content']
         response = self.publisher_api.unarchive_content_release('site1', content_release.uuid)
@@ -322,7 +357,7 @@ class PublisherAPITestCase(TestCase):
         self.assertEquals(response['status'], 'error')
         self.assertEquals(response['error_code'], 'content_release_not_publish')
 
-        """ Unarchive the release """
+        """ Unarchive the ContentRelease """
         content_release.publish_datetime = self.datetime_past
         content_release.save()
         response = self.publisher_api.unarchive_content_release('site1', content_release.uuid)
@@ -331,27 +366,117 @@ class PublisherAPITestCase(TestCase):
         self.assertEquals(content_release.status, 1)
     
     def test_list_content_releases(self):
-        """ No Release """
+        """ No ContentRelease """
         response = self.publisher_api.list_content_releases('site1')
         self.assertEquals(response['status'], 'success')
         self.assertFalse(response['content'].exists())
 
-        """ List Releases without defining status"""
+        """ List ContentReleases without defining status"""
         response = self.publisher_api.add_content_release('site1', 'title1', '0.0.1')
         content_release1 = response['content']
         response = self.publisher_api.add_content_release('site1', 'title2', '0.0.2')
-        content_release2 = response['content']
         response = self.publisher_api.list_content_releases('site1')
         self.assertEquals(response['status'], 'success')
         self.assertEquals(response['content'].count(), 2)
 
-        """ List Releases with status"""
+        """ List ContentReleases with status"""
         content_release1.status = 1
         content_release1.save()
         response = self.publisher_api.list_content_releases('site1', 1)
         self.assertEquals(response['status'], 'success')
         self.assertEquals(response['content'].count(), 1)
+    
+    def test_get_document_from_content_release(self):
+        document_key = 'key1'
 
+        """ No ContentRelease """
+        response = self.publisher_api.get_document_from_content_release('site1', uuid.uuid4(), document_key)
+        self.assertEquals(response['status'], 'error')
+        self.assertEquals(response['error_code'], 'content_release_does_not_exist')
+
+        """ No ReleaseDocument """
+        response = self.publisher_api.add_content_release('site1', 'title1', '0.0.1')
+        content_release = response['content']
+        response = self.publisher_api.get_document_from_content_release('site1', content_release.uuid, document_key)
+        self.assertEquals(response['status'], 'error')
+        self.assertEquals(response['error_code'], 'release_document_does_not_exist')
+
+        """ Get ReleaseDocument """
+        document_json = json.dumps({'page_title': 'Test2 page title'})
+        response = self.publisher_api.publish_document_to_content_release(
+            'site1',
+            content_release.uuid,
+            document_json,
+            document_key,
+        )
+        release_document = ReleaseDocument.objects.get(content_release=content_release, document_key=document_key)
+        response = self.publisher_api.get_document_from_content_release('site1', content_release.uuid, document_key)
+        self.assertEquals(response['status'], 'success')
+        self.assertEquals(response['content'], release_document)
+
+    def test_publish_document_to_content_release(self):
+        document_key = 'key1'
+
+        """ No ContentRelease """
+        response = self.publisher_api.publish_document_to_content_release('site1', uuid.uuid4(), '{}', document_key)
+        self.assertEquals(response['status'], 'error')
+        self.assertEquals(response['error_code'], 'content_release_does_not_exist')
+
+        """ Store ReleaseDocument """
+        response = self.publisher_api.add_content_release('site1', 'title1', '0.0.1')
+        content_release = response['content']
+        document_json = json.dumps({'page_title': 'Test page title'})
+        response = self.publisher_api.publish_document_to_content_release(
+            'site1',
+            content_release.uuid,
+            document_json,
+            document_key,
+        )
+        self.assertEquals(response['status'], 'success')
+        self.assertEquals(response['content']['created'], True)
+        release_document = ReleaseDocument.objects.get(content_release=content_release, document_key=document_key)
+        self.assertEquals(release_document.document_json, document_json)
+
+        """ Try to store a new ReleaseDocument with same  key and content_release """
+        document_json = json.dumps({'page_title': 'Test2 page title'})
+        response = self.publisher_api.publish_document_to_content_release(
+            'site1',
+            content_release.uuid,
+            document_json,
+            document_key,
+        )
+        self.assertEquals(response['status'], 'success')
+        self.assertEquals(response['content']['created'], False)
+        release_document = ReleaseDocument.objects.get(content_release=content_release, document_key=document_key)
+        self.assertEquals(release_document.document_json, document_json)
+
+    def test_unpublish_document_from_content_release(self):
+        document_key = 'key1'
+
+        """ No ContentRelease """
+        response = self.publisher_api.unpublish_document_from_content_release('site1', uuid.uuid4(), document_key)
+        self.assertEquals(response['status'], 'error')
+        self.assertEquals(response['error_code'], 'content_release_does_not_exist')
+
+        """ No ReleaseDocument """
+        response = self.publisher_api.add_content_release('site1', 'title1', '0.0.1')
+        content_release = response['content']
+        response = self.publisher_api.unpublish_document_from_content_release('site1', content_release.uuid, document_key)
+        self.assertEquals(response['status'], 'error')
+        self.assertEquals(response['error_code'], 'release_document_does_not_exist')
+
+        """ Get ReleaseDocument """
+        document_json = json.dumps({'page_title': 'Test2 page title'})
+        response = self.publisher_api.publish_document_to_content_release(
+            'site1',
+            content_release.uuid,
+            document_json,
+            document_key,
+        )
+        response = self.publisher_api.unpublish_document_from_content_release('site1', content_release.uuid, document_key)
+        release_document = ReleaseDocument.objects.filter(content_release=content_release, document_key=document_key)
+        self.assertEquals(response['status'], 'success')
+        self.assertFalse(release_document.exists())
 
 class PublisherAPIJsonTestCase(TestCase):
 
@@ -361,7 +486,6 @@ class PublisherAPIJsonTestCase(TestCase):
     def test_add_content_release(self):
         """ Create a ContentRelease """
         response_json = self.publisher_api.add_content_release('site1', 'title1', '0.0.1')
-        content_release = ContentRelease.objects.get(site_code='site1', title='title1', version='0.0.1')
         response = json.loads(response_json)
         self.assertEquals(response['status'], 'success')
         self.assertEquals(response['content'], {
@@ -428,7 +552,7 @@ class PublisherAPIJsonTestCase(TestCase):
         })
 
     def test_get_live_content_release(self):
-        """ Get live release """
+        """ Get live ContentRelease """
         response_json = self.publisher_api.add_content_release('site1', 'title1', '0.0.1')
         response = json.loads(response_json)
         content_release = ContentRelease.objects.get(uuid=response['content']['uuid'])
@@ -467,4 +591,26 @@ class PublisherAPIJsonTestCase(TestCase):
             'status': 'PENDING',
             'publish_datetime': response['content'][0]['publish_datetime'],
             'base_release': None,
+        })
+    
+    def test_get_document_from_content_release(self):
+        document_key = 'key1'
+        response_json = self.publisher_api.add_content_release('site1', 'title1', '0.0.1')
+        response = json.loads(response_json)
+        content_release = ContentRelease.objects.get(uuid=response['content']['uuid'])
+        document_json = json.dumps({'page_title': 'Test2 page title'})
+        response_json = self.publisher_api.publish_document_to_content_release(
+            'site1',
+            content_release.uuid,
+            document_json,
+            document_key,
+        )
+        response_json = self.publisher_api.get_document_from_content_release('site1', content_release.uuid, document_key)
+        response = json.loads(response_json)
+        self.assertEquals(response['status'], 'success')
+        self.assertEquals(response['content'], {
+            'id': response['content']['id'],
+            'document_key': document_key,
+            'document_json': document_json,
+            'content_release_uuid': str(content_release.uuid),
         })

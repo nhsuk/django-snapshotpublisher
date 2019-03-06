@@ -6,7 +6,7 @@ from django.db import models
 from django.forms.models import model_to_dict
 from django.utils.translation import gettext_lazy as _
 
-from .manager import ContentReleaseManager
+from .manager import ContentReleaseManager, ReleaseDocumentManager
 
 
 CONTENT_RELEASE_STATUS = (
@@ -72,4 +72,25 @@ class ContentRelease(models.Model):
         instance_dict = model_to_dict(self)
         instance_dict['uuid'] = self.uuid
         instance_dict['status'] = self.get_status_display()
+        return instance_dict
+
+
+class ReleaseDocument(models.Model):
+    document_key = models.SlugField(max_length=100, unique=True)
+    content_release = models.ForeignKey(
+        'ContentRelease',
+        blank=False,
+        null=False,
+        on_delete=models.CASCADE,
+    )
+    document_json = models.TextField(null=True)
+    objects = ReleaseDocumentManager()
+
+    class Meta:
+        unique_together = (('document_key', 'content_release'),)
+
+    def to_dict(self):
+        instance_dict = model_to_dict(self)
+        instance_dict['content_release_uuid'] = self.content_release.uuid
+        del(instance_dict['content_release'])
         return instance_dict

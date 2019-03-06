@@ -6,7 +6,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from .lazy_encoder import LazyEncoder
-from .models import ContentRelease
+from .models import ContentRelease, ReleaseDocument
 
 
 API_TYPES = ['django', 'json']
@@ -21,6 +21,7 @@ ERROR_STATUS_CODE = {
     'base_content_release_does_not_exist': _('Base ContentRelease doesn\'t exists'),
     'content_release_publish': _('ContentRelease is published'),
     'content_release_not_publish': _('ContentRelease is not published'),
+    'release_document_does_not_exist': _('ReleaseDocument doesn\'t exist'),
 }
 
 
@@ -39,7 +40,7 @@ class PublisherAPI:
             if self.api_type == 'json':
                 if isinstance(data, QuerySet):
                     data = [item.to_dict() for item in data]
-                if isinstance(data, (ContentRelease, ContentRelease)):
+                if isinstance(data, (ContentRelease, ReleaseDocument)):
                     data = data.to_dict()
             if data is not None:
                 response['content'] = data
@@ -177,3 +178,38 @@ class PublisherAPI:
         if status:
             content_releases = content_releases.filter(status=status)
         return self.send_response('success', content_releases)
+
+    def get_document_from_content_release(self, site_code, release_uuid, document_key):
+        try:
+            content_release = ContentRelease.objects.get(site_code=site_code, uuid=release_uuid)
+            release_document = ReleaseDocument.objects.get(content_release=content_release, document_key=document_key)
+            return self.send_response('success', release_document)
+        except ContentRelease.DoesNotExist:
+            return self.send_response('content_release_does_not_exist')
+        except ReleaseDocument.DoesNotExist:
+            return self.send_response('release_document_does_not_exist')
+
+    def publish_document_to_content_release(self, site_code, release_uuid, document_json, document_key):
+        try:
+            content_release = ContentRelease.objects.get(site_code=site_code, uuid=release_uuid)
+            release_document, created = ReleaseDocument.objects.update_or_create(
+                content_release=content_release,
+                document_key=document_key,
+                defaults={
+                    'document_json': document_json,
+                },
+            )
+            return self.send_response('success', {'created': created})
+        except ContentRelease.DoesNotExist:
+            return self.send_response('content_release_does_not_exist')
+
+    def unpublish_document_from_content_release(self, site_code, release_uuid, document_key):
+        try:
+            content_release = ContentRelease.objects.get(site_code=site_code, uuid=release_uuid)
+            release_document = ReleaseDocument.objects.get(content_release=content_release, document_key=document_key)
+            release_document.delete()
+            return self.send_response('success')
+        except ContentRelease.DoesNotExist:
+            return self.send_response('content_release_does_not_exist')
+        except ReleaseDocument.DoesNotExist:
+            return self.send_response('release_document_does_not_exist')

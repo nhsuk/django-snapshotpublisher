@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import ContentRelease
+from .models import ContentRelease, ReleaseDocument
 
 
 class ContentReleaseAdmin(admin.ModelAdmin):
@@ -10,3 +10,4 @@ class ContentReleaseAdmin(admin.ModelAdmin):
 
 
 admin.site.register(ContentRelease, ContentReleaseAdmin)
+admin.site.register(ReleaseDocument)
