@@ -71,44 +71,6 @@ class ContentReleaseTestCase(TestCase):
             self.assertEqual('version_conflict_live_releases', v_e.code)
 
 
-class ReleaseDocumentTestCase(TestCase):
-    """ unittest for ReleaseDocument model """
-
-    def setUp(self):
-        """ setUp """
-        self.document_key1 = 'key1'
-
-    def test_unique_document_per_release(self):
-        """ unittest for to check if ReleaseDocument is unique per ContentRelease """
-
-        #  Create ContentRelease
-        content_release = ContentRelease(
-            version='0.0.1',
-            title='test1',
-            site_code='site1',
-        )
-        content_release.save()
-
-        #  Store ReleaseDocument
-        data = {'page_title': 'Test page title'}
-        release_document = ReleaseDocument(
-            document_key=self.document_key1,
-            content_release=content_release,
-            document_json=json.dumps(data),
-        )
-        release_document.save()
-
-        #  Try to store a new ReleaseDocument with same  key and content_release
-        with self.assertRaises(IntegrityError):
-            data = {'page_title': 'Test2 page title'}
-            release_document = ReleaseDocument(
-                document_key=self.document_key1,
-                content_release=content_release,
-                document_json=json.dumps(data),
-            )
-            release_document.save()
-
-
 class PublisherAPITestCase(TestCase):
     """ unittest for ublisherAPITest with api_type=django """
 
@@ -458,7 +420,8 @@ class PublisherAPITestCase(TestCase):
             document_key,
         )
         release_document = ReleaseDocument.objects.get(
-            content_release=content_release, document_key=document_key)
+            document_key=document_key,
+            content_releases__id=content_release.id)
         response = self.publisher_api.get_document_from_content_release(
             'site1', content_release.uuid, document_key)
         self.assertEqual(response['status'], 'success')
@@ -500,7 +463,7 @@ class PublisherAPITestCase(TestCase):
         self.assertEqual(response['status'], 'success')
         self.assertEqual(response['content']['created'], True)
         release_document = ReleaseDocument.objects.get(
-            content_release=content_release, document_key=document_key)
+            document_key=document_key, content_releases__id=content_release.id)
         self.assertEqual(release_document.document_json, document_json)
 
         #  Try to store a new ReleaseDocument with same  key and content_release
@@ -514,7 +477,7 @@ class PublisherAPITestCase(TestCase):
         self.assertEqual(response['status'], 'success')
         self.assertEqual(response['content']['created'], False)
         release_document = ReleaseDocument.objects.get(
-            content_release=content_release, document_key=document_key)
+            document_key=document_key, content_releases__id=content_release.id)
         self.assertEqual(release_document.document_json, document_json)
 
         #  Store ReleaseDocument with content_type
@@ -561,7 +524,7 @@ class PublisherAPITestCase(TestCase):
         response = self.publisher_api.unpublish_document_from_content_release(
             'site1', content_release.uuid, document_key)
         release_document = ReleaseDocument.objects.filter(
-            content_release=content_release, document_key=document_key)
+            document_key=document_key, content_releases__id=content_release.id)
         self.assertEqual(response['status'], 'success')
         self.assertFalse(release_document.exists())
 
@@ -581,7 +544,7 @@ class PublisherAPITestCase(TestCase):
         response = self.publisher_api.unpublish_document_from_content_release(
             'site1', content_release.uuid, document_key, 'page')
         release_document = ReleaseDocument.objects.filter(
-            content_release=content_release, document_key=document_key, content_type='page')
+            document_key=document_key, content_releases__id=content_release.id, content_type='page')
         self.assertEqual(response['status'], 'success')
         self.assertFalse(release_document.exists())
 
@@ -739,6 +702,5 @@ class PublisherAPIJsonTestCase(TestCase):
             'id': response['content']['id'],
             'document_key': document_key,
             'document_json': document_json,
-            'content_release_uuid': str(content_release.uuid),
             'content_type': 'content',
         })

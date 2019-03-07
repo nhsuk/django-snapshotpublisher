@@ -43,6 +43,19 @@ def valide_version(value):
     return valid
 
 
+class ReleaseDocument(models.Model):
+    """ ReleaseDocument """
+    document_key = models.SlugField(max_length=100, unique=True)
+    content_type = models.SlugField(max_length=100, default='content')
+    document_json = models.TextField(null=True)
+    # objects = ReleaseDocumentManager()
+
+    def to_dict(self):
+        """ to_dict """
+        instance_dict = model_to_dict(self)
+        return instance_dict
+
+
 class ContentRelease(models.Model):
     """ ContentRelease """
     uuid = models.UUIDField(max_length=255, unique=True, default=uuid.uuid4, editable=False)
@@ -57,6 +70,7 @@ class ContentRelease(models.Model):
         null=True,
         on_delete=models.CASCADE,
     )
+    release_documents = models.ManyToManyField(ReleaseDocument, related_name='content_releases')
     objects = ContentReleaseManager()
 
     def __str__(self):
@@ -83,29 +97,5 @@ class ContentRelease(models.Model):
         instance_dict = model_to_dict(self)
         instance_dict['uuid'] = self.uuid
         instance_dict['status'] = self.get_status_display()
-        return instance_dict
-
-
-class ReleaseDocument(models.Model):
-    """ ReleaseDocument """
-    document_key = models.SlugField(max_length=100, unique=True)
-    content_release = models.ForeignKey(
-        'ContentRelease',
-        blank=False,
-        null=False,
-        on_delete=models.CASCADE,
-    )
-    content_type = models.SlugField(max_length=100, default='content')
-    document_json = models.TextField(null=True)
-    # objects = ReleaseDocumentManager()
-
-    class Meta:
-        """ Meta """
-        unique_together = (('document_key', 'content_release'),)
-
-    def to_dict(self):
-        """ to_dict """
-        instance_dict = model_to_dict(self)
-        instance_dict['content_release_uuid'] = self.content_release.uuid
-        instance_dict.pop('content_release')
+        instance_dict.pop('release_documents')
         return instance_dict

@@ -20,5 +20,5 @@ if settings.DEBUG:
 
     # Django debug toolbar
     urlpatterns = [
-        path(r'^__debug__/', include(debug_toolbar.urls)),
+        path('__debug__/', include(debug_toolbar.urls)),
     ] + urlpatterns

@@ -204,9 +204,9 @@ class PublisherAPI:
         try:
             content_release = ContentRelease.objects.get(site_code=site_code, uuid=release_uuid)
             release_document = ReleaseDocument.objects.get(
-                content_release=content_release,
                 document_key=document_key,
                 content_type=content_type,
+                content_releases__id=content_release.id
             )
             return self.send_response('success', release_document)
         except ContentRelease.DoesNotExist:
@@ -220,13 +220,14 @@ class PublisherAPI:
         try:
             content_release = ContentRelease.objects.get(site_code=site_code, uuid=release_uuid)
             release_document, created = ReleaseDocument.objects.update_or_create(
-                content_release=content_release,
                 document_key=document_key,
                 defaults={
                     'document_json': document_json,
                     'content_type': content_type,
                 },
             )
+            content_release.release_documents.add(release_document)
+            content_release.save()
             return self.send_response('success', {'created': created})
         except ContentRelease.DoesNotExist:
             return self.send_response('content_release_does_not_exist')
@@ -237,7 +238,6 @@ class PublisherAPI:
         try:
             content_release = ContentRelease.objects.get(site_code=site_code, uuid=release_uuid)
             release_document = ReleaseDocument.objects.get(
-                content_release=content_release,
                 document_key=document_key,
                 content_type=content_type,
             )
