@@ -8,6 +8,7 @@ import uuid
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.forms.models import model_to_dict
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from .manager import ContentReleaseManager #, ReleaseDocumentManager
@@ -45,7 +46,7 @@ def valide_version(value):
 
 class ReleaseDocument(models.Model):
     """ ReleaseDocument """
-    document_key = models.SlugField(max_length=100, unique=True)
+    document_key = models.SlugField(max_length=100)
     content_type = models.SlugField(max_length=100, default='content')
     document_json = models.TextField(null=True)
     # objects = ReleaseDocumentManager()
@@ -64,6 +65,7 @@ class ContentRelease(models.Model):
     site_code = models.SlugField(max_length=100)
     status = models.IntegerField(choices=CONTENT_RELEASE_STATUS, default=0)
     publish_datetime = models.DateTimeField(blank=True, null=True,)
+    use_current_live_as_base_release = models.BooleanField(default=False)
     base_release = models.ForeignKey(
         'ContentRelease',
         blank=True,
@@ -71,6 +73,7 @@ class ContentRelease(models.Model):
         on_delete=models.CASCADE,
     )
     release_documents = models.ManyToManyField(ReleaseDocument, related_name='content_releases')
+    is_live = models.BooleanField(default=False)
     objects = ContentReleaseManager()
 
     def __str__(self):
@@ -85,11 +88,18 @@ class ContentRelease(models.Model):
                 version__gte=self.version,
             ).exclude(id=self.id).exists()
 
-            if is_version_conflict_with_live:
+            if not self.is_live and is_version_conflict_with_live:
                 raise ValidationError(
                     _('Conflict version with frozen or archived release(s), try bigger number'),
                     code='version_conflict_live_releases',
                 )
+        
+        if self.use_current_live_as_base_release and self.base_release:
+            raise ValidationError(
+                _('You cannot set a Base Release if you want to use the current live as the base\
+                     release'),
+                code='base_release_should_be_none',
+            )
         super(ContentRelease, self).save(*args, **kwargs)
 
     def to_dict(self):
@@ -98,4 +108,37 @@ class ContentRelease(models.Model):
         instance_dict['uuid'] = self.uuid
         instance_dict['status'] = self.get_status_display()
         instance_dict.pop('release_documents')
+        instance_dict.pop('is_live')
         return instance_dict
+
+    @classmethod
+    def copy_document_live_releases(cls, site_code):
+        live_content_release_not_ready = cls.objects.filter(
+            site_code=site_code,
+            status=1,
+            publish_datetime__lt=timezone.now(),
+            is_live=False,
+        ).order_by('publish_datetime')
+
+        for content_release in live_content_release_not_ready:
+            content_release.copy_document_release_ref_from_baserelease()
+    
+    def copy_document_release_ref_from_baserelease(self):
+        base_release = self.base_release
+        if self.use_current_live_as_base_release:
+            base_release = self.__class__.objects.filter(
+                publish_datetime__lt=self.publish_datetime, site_code=self.site_code).order_by(
+                    '-publish_datetime').first()
+
+        if base_release:
+            for release_document in base_release.release_documents.all():
+                try:
+                    ReleaseDocument.objects.get(
+                        document_key=release_document.document_key,
+                        content_type=release_document.content_type,
+                        content_releases=self,
+                    )
+                except ReleaseDocument.DoesNotExist:
+                    self.release_documents.add(release_document)
+        self.is_live = True
+        self.save()

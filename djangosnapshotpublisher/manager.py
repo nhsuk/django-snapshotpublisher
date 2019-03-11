@@ -11,14 +11,17 @@ class ContentReleaseManager(models.Manager):
 
     def live(self, site_code):
         """ live """
-        return self.get_queryset().filter(
+        self.model.copy_document_live_releases(site_code)
+        live_content_release = self.get_queryset().filter(
             site_code=site_code,
             status=1,
             publish_datetime__lt=timezone.now(),
         ).order_by('-publish_datetime').first()
+        return live_content_release
 
     def lives(self, site_code):
         """ lives """
+        self.model.copy_document_live_releases(site_code)
         return self.get_queryset().filter(
             site_code=site_code,
             status=1,
@@ -30,7 +33,7 @@ class ContentReleaseManager(models.Manager):
         return self.get_queryset().filter(
             uuid=uuid,
             publish_datetime__lt=timezone.now(),
-        ).exists()
+         ).exists()
 
 # class ReleaseDocumentManager(models.Manager):
 #     """ ReleaseDocumentManager """

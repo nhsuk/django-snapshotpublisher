@@ -70,6 +70,131 @@ class ContentReleaseTestCase(TestCase):
         except ValidationError as v_e:
             self.assertEqual('version_conflict_live_releases', v_e.code)
 
+    def test_base_release(self):
+        """ unittest for base_release attribute validation """
+        # use_current_live_as_base_release True
+        content_release1 = ContentRelease(
+            version='0.1',
+            title='test1',
+            site_code='site1',
+            status=0,
+            use_current_live_as_base_release=True,
+        )
+        content_release1.save()
+
+        # use_current_live_as_base_release False and base_release not None
+        content_release2 = ContentRelease(
+            version='0.2',
+            title='test2',
+            site_code='site1',
+            status=0,
+            use_current_live_as_base_release=False,
+            base_release=content_release1,
+        )
+        content_release2.save()
+
+        # use_current_live_as_base_release True and base_release not None
+        try:
+            content_release2.use_current_live_as_base_release = True
+            content_release2.save()
+        except ValidationError as v_e:
+            self.assertEqual('base_release_should_be_none', v_e.code)
+
+    def test_set_live(self):
+        """ unittest when content release go live """
+        self.publisher_api = PublisherAPI(api_type='django')
+        response = self.publisher_api.add_content_release('site1', 'title1', '0.1')
+        content_release = response['content']
+        document_json = json.dumps({'page_title': 'Test'})
+        response = self.publisher_api.publish_document_to_content_release(
+            'site1',
+            content_release.uuid,
+            document_json,
+            'key1',
+        )
+        self.publisher_api.set_live_content_release('site1', content_release.uuid)
+        self.publisher_api.get_live_content_release('site1')
+
+        # set live, not base release
+        response = self.publisher_api.add_content_release(
+            'site1', 'title2', '0.2')
+        content_release2 = response['content']
+        document_json2 = json.dumps({'page_title': 'Test2'})
+        response = self.publisher_api.publish_document_to_content_release(
+            'site1',
+            content_release2.uuid,
+            document_json2,
+            'key1',
+        )
+        document_json3 = json.dumps({'page_title': 'Test3'})
+        response = self.publisher_api.publish_document_to_content_release(
+            'site1',
+            content_release2.uuid,
+            document_json3,
+            'key2',
+        )
+        self.publisher_api.set_live_content_release('site1', content_release2.uuid)
+        self.publisher_api.get_live_content_release('site1')
+        content_release2 = ContentRelease.objects.get(uuid=content_release2.uuid)
+        self.assertEqual(content_release2.release_documents.count(), 2)
+        release_document1 = content_release2.release_documents.get(
+            document_key='key1',
+        )
+        release_document2 = content_release2.release_documents.get(
+            document_key='key2',
+        )
+        self.assertEqual(json.loads(release_document1.document_json), {'page_title': 'Test2'})
+        self.assertEqual(json.loads(release_document2.document_json), {'page_title': 'Test3'})
+
+        # copy base release documents
+        response = self.publisher_api.add_content_release(
+            'site1', 'title3', '0.3', content_release2.uuid)
+        content_release3 = response['content']
+        document_json4 = json.dumps({'page_title': 'Test4'})
+        response = self.publisher_api.publish_document_to_content_release(
+            'site1',
+            content_release3.uuid,
+            document_json4,
+            'key2',
+        )
+        self.publisher_api.set_live_content_release('site1', content_release3.uuid)
+
+        # publish to content release and get the last one and check in the copy works
+        response = self.publisher_api.add_content_release(
+            'site1', 'title4', '0.4', None, True)
+        content_release4 = response['content']
+        document_json5 = json.dumps({'page_title': 'Test5'})
+        response = self.publisher_api.publish_document_to_content_release(
+            'site1',
+            content_release4.uuid,
+            document_json5,
+            'key1',
+        )
+        self.publisher_api.set_live_content_release('site1', content_release4.uuid)
+
+        self.publisher_api.get_live_content_release('site1')
+        content_release3 = ContentRelease.objects.get(uuid=content_release3.uuid)
+        self.assertEqual(content_release3.release_documents.count(), 2)
+        release_document1 = content_release3.release_documents.get(
+            document_key='key1',
+        )
+        release_document2 = content_release3.release_documents.get(
+            document_key='key2',
+        )
+        self.assertEqual(json.loads(release_document1.document_json), {'page_title': 'Test2'})
+        self.assertEqual(json.loads(release_document2.document_json), {'page_title': 'Test4'})
+
+        content_release4 = ContentRelease.objects.get(uuid=content_release4.uuid)
+        self.assertEqual(content_release4.release_documents.count(), 2)
+        release_document1 = content_release4.release_documents.get(
+            document_key='key1',
+        )
+        release_document2 = content_release4.release_documents.get(
+            document_key='key2',
+        )
+        self.assertEqual(json.loads(release_document1.document_json), {'page_title': 'Test5'})
+        self.assertEqual(json.loads(release_document2.document_json), {'page_title': 'Test4'})
+
 
 class PublisherAPITestCase(TestCase):
     """ unittest for ublisherAPITest with api_type=django """
@@ -489,6 +614,11 @@ class PublisherAPITestCase(TestCase):
             document_key,
             'page',
         )
+        self.publisher_api.get_live_content_release('site1')
+        release_document = ReleaseDocument.objects.get(
+            document_key=document_key,
+            content_releases__id=content_release.id,
+            content_type='page')
         self.assertEqual(response['status'], 'success')
         response = self.publisher_api.get_document_from_content_release(
             'site1', content_release.uuid, document_key, 'page')
@@ -571,6 +701,7 @@ class PublisherAPIJsonTestCase(TestCase):
             'site_code': 'site1',
             'status': 'PENDING',
             'publish_datetime': None,
+            'use_current_live_as_base_release': False,
             'base_release': None,
         })
 
@@ -631,6 +762,7 @@ class PublisherAPIJsonTestCase(TestCase):
             'site_code': 'site1',
             'status': 'PENDING',
             'publish_datetime': None,
+            'use_current_live_as_base_release': False,
             'base_release': None,
         })
 
@@ -655,6 +787,7 @@ class PublisherAPIJsonTestCase(TestCase):
             'site_code': 'site1',
             'status': 'FROZEN',
             'publish_datetime': response['content']['publish_datetime'],
+            'use_current_live_as_base_release': False,
             'base_release': None,
         })
 
@@ -677,6 +810,7 @@ class PublisherAPIJsonTestCase(TestCase):
             'site_code': 'site1',
             'status': 'PENDING',
             'publish_datetime': response['content'][0]['publish_datetime'],
+            'use_current_live_as_base_release': False,
             'base_release': None,
         })
 
