@@ -4,14 +4,16 @@
 """
 
 from datetime import datetime
+from functools import reduce
 import json
 
+from django.db.models import Q, Count
 from django.db.models.query import QuerySet
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from .lazy_encoder import LazyEncoder
-from .models import ContentRelease, ReleaseDocument
+from .models import ContentRelease, ReleaseDocument, ContentReleaseExtraParameter
 
 
 API_TYPES = ['django', 'json']
@@ -27,6 +29,10 @@ ERROR_STATUS_CODE = {
     'content_release_publish': _('ContentRelease is published'),
     'content_release_not_publish': _('ContentRelease is not published'),
     'release_document_does_not_exist': _('ReleaseDocument doesn\'t exist'),
+    'parameters_missing': _('Parameter(s) missing'),
+    'content_release_more_than_one': _('More than One Content Release'),
+    'content_release_extra_parameter_does_not_exist': _(
+        'ContentReleaseExtraParameter doesn\'t exist'),
 }
 
 
@@ -62,17 +68,17 @@ class PublisherAPI:
             return json.dumps(response, cls=LazyEncoder)
         return response
 
-
     def add_content_release(
-            self, site_code, title, version, based_on_release_uuid=None,
+            self, site_code, title, version, parameters=None, based_on_release_uuid=None,
             use_current_live_as_base_release=False):
         """ add_content_release """
         try:
-            ContentRelease.objects.get(
+            content_release = ContentRelease.objects.get(
                 site_code=site_code,
                 title=title,
                 version=version,
             )
+            self.update_content_release_parameters(site_code, content_release.uuid, parameters)
             return self.send_response('content_release_already_exists')
         except ContentRelease.DoesNotExist:
             base_release = None
@@ -90,8 +96,50 @@ class PublisherAPI:
                 use_current_live_as_base_release=use_current_live_as_base_release,
             )
             content_release.save()
-            # TODO copy all children from base release to this release.
+            self.update_content_release_parameters(site_code, content_release.uuid, parameters)
             return self.send_response('success', content_release)
+
+    def update_content_release_parameters(self, site_code, release_uuid, parameters,
+            clear_first=False):
+        try:
+            content_release = ContentRelease.objects.get(
+                site_code=site_code,
+                uuid=release_uuid,
+            )
+        
+            if clear_first:
+                ContentReleaseExtraParameter.objects.filter(
+                    content_release=content_release).delete()
+            
+            if parameters:
+                for key, value in parameters.items():
+                    extra_parameter = ContentReleaseExtraParameter(
+                        key=key,
+                        content=value,
+                        content_release=content_release,
+                    )
+                    extra_parameter.save()
+        
+        except ContentRelease.DoesNotExist:
+            return self.send_response('content_release_does_not_exist')
+    
+    def get_extra_paramater(self, site_code, release_uuid, key):
+        try:
+            extra_parameter = ContentReleaseExtraParameter.objects.get(
+                content_release__site_code=site_code,
+                content_release__uuid=release_uuid,
+                key=key,
+            )
+            return self.send_response('success', extra_parameter.content)
+        except ContentReleaseExtraParameter.DoesNotExist:
+            return self.send_response('content_release_extra_parameter_does_not_exist')
+
+    def get_extra_paramaters(self, site_code, release_uuid):
+        extra_parameters = ContentReleaseExtraParameter.objects.filter(
+            content_release__site_code=site_code,
+            content_release__uuid=release_uuid,
+        )
+        return self.send_response('success', extra_parameters)
 
     def remove_content_release(self, site_code, release_uuid):
         """ remove_content_release """
@@ -101,7 +149,8 @@ class PublisherAPI:
         except ContentRelease.DoesNotExist:
             return self.send_response('content_release_does_not_exist')
 
-    def update_content_release(self, site_code, release_uuid, title=None, version=None):
+    def update_content_release(
+            self, site_code, release_uuid, title=None, version=None, parameters=None):
         """ update_content_release """
         if not title and not version:
             return self.send_response('content_release_title_version_not_defined')
@@ -112,19 +161,46 @@ class PublisherAPI:
             if version:
                 content_release.version = version
             content_release.save()
+            self.update_content_release_parameters(site_code, release_uuid, parameters)
             return self.send_response('success')
         except ContentRelease.DoesNotExist:
             return self.send_response('content_release_does_not_exist')
 
-    def get_content_release_details(self, site_code, release_uuid):
+    def get_content_release_details(self, site_code, release_uuid, parameters=None):
         """ get_content_release_details """
         try:
             content_release = ContentRelease.objects.get(site_code=site_code, uuid=release_uuid)
             return self.send_response('success', content_release)
         except ContentRelease.DoesNotExist:
             return self.send_response('content_release_does_not_exist')
+    
+    def get_content_release_details_query_parameters(self, site_code, parameters):
+        """ get_content_release_details_query_parameters """
+        if not parameters:
+            return self.send_response('parameters_missing')
 
-    def get_live_content_release(self, site_code):
+        filters = []
+        for key, value in parameters.items():
+            filters.append(Q(key=key, content=value))
+        
+        extra_parameter = ContentReleaseExtraParameter.objects.filter(
+            reduce(lambda x, y: x | y, filters))
+
+        if not extra_parameter.exists():
+            return self.send_response('content_release_does_not_exist')
+
+        list_by_releases = extra_parameter.values('content_release').annotate(cr_count=Count(
+            'content_release'))
+        
+        if list_by_releases.filter(cr_count=len(parameters)).count() > 1:
+            return self.send_response('content_release_more_than_one')
+        elif list_by_releases.filter(cr_count=len(parameters)).count() == 0:
+            return self.send_response('content_release_does_not_exist')
+
+        content_release_id = list_by_releases.get(cr_count=len(parameters))['content_release']
+        return self.send_response('success', ContentRelease.objects.get(id=content_release_id))
+
+    def get_live_content_release(self, site_code, parameters=None):
         """ get_live_content_release """
         live_content_release = ContentRelease.objects.live(site_code)
         if live_content_release:

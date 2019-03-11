@@ -54,6 +54,26 @@ class ReleaseDocument(models.Model):
     def to_dict(self):
         """ to_dict """
         instance_dict = model_to_dict(self)
+        instance_dict.pop('id')
+        return instance_dict
+
+
+class ContentReleaseExtraParameter(models.Model):
+    key = models.SlugField(max_length=100)
+    content = models.TextField(null=True)
+    content_release = models.ForeignKey(
+        'ContentRelease',
+        blank=False,
+        null=False,
+        on_delete=models.CASCADE,
+    )
+
+    def to_dict(self):
+        """ to_dict """
+        instance_dict = model_to_dict(self)
+        instance_dict['content_release_uuid'] = self.content_release.uuid
+        instance_dict.pop('content_release')
+        instance_dict.pop('id')
         return instance_dict
 
 
@@ -109,6 +129,7 @@ class ContentRelease(models.Model):
         instance_dict['status'] = self.get_status_display()
         instance_dict.pop('release_documents')
         instance_dict.pop('is_live')
+        instance_dict.pop('id')
         return instance_dict
 
     @classmethod

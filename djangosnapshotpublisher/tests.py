@@ -7,11 +7,12 @@ import json
 import uuid
 
 from django.core.exceptions import ValidationError
+from django.db.models.query import QuerySet
 from django.db.utils import IntegrityError
 from django.test import TestCase
 from django.utils import timezone
 
-from djangosnapshotpublisher.models import ContentRelease, ReleaseDocument
+from djangosnapshotpublisher.models import ContentRelease, ReleaseDocument, ContentReleaseExtraParameter
 from djangosnapshotpublisher.publisher_api import PublisherAPI, DATETIME_FORMAT
 
 
@@ -148,7 +149,7 @@ class ContentReleaseTestCase(TestCase):
 
         # copy base release documents
         response = self.publisher_api.add_content_release(
-            'site1', 'title3', '0.3', content_release2.uuid)
+            'site1', 'title3', '0.3', None, content_release2.uuid)
         content_release3 = response['content']
         document_json4 = json.dumps({'page_title': 'Test4'})
         response = self.publisher_api.publish_document_to_content_release(
@@ -161,7 +162,7 @@ class ContentReleaseTestCase(TestCase):
 
         # publish to content release and get the last one and check in the copy works
         response = self.publisher_api.add_content_release(
-            'site1', 'title4', '0.4', None, True)
+            'site1', 'title4', '0.4', None, None, True)
         content_release4 = response['content']
         document_json5 = json.dumps({'page_title': 'Test5'})
         response = self.publisher_api.publish_document_to_content_release(
@@ -221,17 +222,33 @@ class PublisherAPITestCase(TestCase):
         self.assertEqual(response['error_code'], 'content_release_already_exists')
 
         #  Try to create a Base ContentRelease that alredy exist
-        response = self.publisher_api.add_content_release('site1', 'title2', '0.0.2', uuid.uuid4())
+        response = self.publisher_api.add_content_release(
+            'site1', 'title2', '0.0.2', None, uuid.uuid4())
         self.assertEqual(response['status'], 'error')
         self.assertEqual(response['error_code'], 'base_content_release_does_not_exist')
 
         #  Create a ContentRelease with Base ContentRelease
         response = self.publisher_api.add_content_release(
-            'site1', 'title2', '0.0.2', content_release.uuid)
+            'site1', 'title2', '0.0.2', None, content_release.uuid)
         content_release = ContentRelease.objects.get(
             site_code='site1', title='title2', version='0.0.2')
         self.assertEqual(response['status'], 'success')
         self.assertEqual(response['content'], content_release)
+
+        #  Create a ContentRelease with extra parameters
+        parameters = {'frontend_id': 'v0.1', 'domain': 'test.co.uk'}
+        response = self.publisher_api.add_content_release(
+            'site1', 'title2', '0.0.3', parameters, None, False)
+        content_release = ContentRelease.objects.get(
+            site_code='site1', title='title2', version='0.0.3')
+        self.assertEqual(response['status'], 'success')
+        self.assertEqual(response['content'], content_release)
+        extra_parameters = ContentReleaseExtraParameter.objects.filter(
+            content_release=content_release,
+        )
+        self.assertEqual(extra_parameters.count(), 2)
+        for extra_parameter in extra_parameters:
+            self.assertEqual(extra_parameter.content, parameters[extra_parameter.key])
 
     def test_remove_content_release(self):
         """ unittest for remove_content_release """
@@ -252,6 +269,17 @@ class PublisherAPITestCase(TestCase):
         self.assertEqual(response['status'], 'success')
         self.assertFalse(ContentRelease.objects.filter(
             site_code='site1', uuid=content_release.uuid).exists())
+        
+        #  Remove a ContentRelease with extra parameters
+        parameters = {'frontend_id': 'v0.1', 'domain': 'test.co.uk'}
+        response = self.publisher_api.add_content_release(
+            'site1', 'title2', '0.0.2', parameters, None, False)
+        self.assertEqual(response['status'], 'success')
+        response = self.publisher_api.remove_content_release('site1', content_release.uuid)
+        self.assertFalse(ContentRelease.objects.filter(
+            site_code='site1', uuid=content_release.uuid).exists())
+        self.assertFalse(ContentReleaseExtraParameter.objects.filter(
+            content_release=content_release).exists())
 
     def test_update_content_release(self):
         """ unittest for update_content_release """
@@ -280,6 +308,24 @@ class PublisherAPITestCase(TestCase):
         self.assertEqual(response['status'], 'error')
         self.assertEqual(response['error_code'], 'content_release_title_version_not_defined')
 
+        #  Update without extra parameters
+        parameters = {'frontend_id': 'v0.1', 'domain': 'test.co.uk'}
+        response = self.publisher_api.update_content_release('site1', content_release.uuid, **{
+            'title': 'title3',
+            'version': '0.0.2',
+            'parameters': parameters,
+        })
+        content_release = ContentRelease.objects.get(uuid=content_release.uuid)
+        self.assertEqual(response['status'], 'success')
+        self.assertEqual(content_release.title, 'title3')
+        self.assertEqual(content_release.version, '0.0.2')
+        extra_parameters = ContentReleaseExtraParameter.objects.filter(
+            content_release=content_release,
+        )
+        self.assertEqual(extra_parameters.count(), 2)
+        for extra_parameter in extra_parameters:
+            self.assertEqual(extra_parameter.content, parameters[extra_parameter.key])
+
     def test_get_content_release_details(self):
         """ unittest for get_content_release_details """
 
@@ -295,6 +341,88 @@ class PublisherAPITestCase(TestCase):
         response = self.publisher_api.get_content_release_details('site1', content_release.uuid)
         self.assertEqual(response['status'], 'success')
         self.assertEqual(response['content'], content_release)
+
+    def test_get_content_release_details_query_parameters(self):
+        """ unittest for get_content_release_details_query_parameters """
+
+        #  missing parameters
+        response = self.publisher_api.get_content_release_details_query_parameters(
+            'site1', None)
+        self.assertEqual(response['status'], 'error')
+        self.assertEqual(response['error_code'], 'parameters_missing')
+
+        #  Try to get a ContentRelease that doesn't exist
+        response = self.publisher_api.get_content_release_details_query_parameters(
+            'site1', {'frontend_id': 'v0.1', 'domain': 'test.co.uk'})
+        self.assertEqual(response['status'], 'error')
+        self.assertEqual(response['error_code'], 'content_release_does_not_exist')
+
+        # Get content release
+        parameters = {'frontend_id': 'v0.1', 'domain': 'test.co.uk'}
+        response = self.publisher_api.add_content_release(
+            'site1', 'title1', '0.0.1', parameters, None, False)
+        content_release = response['content']
+        response = self.publisher_api.get_content_release_details_query_parameters(
+            'site1', {'frontend_id': 'v0.1', 'domain': 'test.co.uk'})
+        self.assertEqual(response['status'], 'success')
+        self.assertEqual(response['content'], content_release)
+
+        # Get content release more than one same domain but different frontend
+        parameters = {'frontend_id': 'v0.2', 'domain': 'test.co.uk'}
+        response = self.publisher_api.add_content_release(
+            'site1', 'title2', '0.0.2', parameters, None, False)
+        content_release = response['content']
+        response = self.publisher_api.get_content_release_details_query_parameters(
+            'site1', {'frontend_id': 'v0.2', 'domain': 'test.co.uk'})
+        self.assertEqual(response['status'], 'success')
+        self.assertEqual(response['content'], content_release)
+
+        # Get content release more than one
+        parameters = {'frontend_id': 'v0.1', 'domain': 'test.co.uk'}
+        response = self.publisher_api.add_content_release(
+            'site1', 'title3', '0.0.3', parameters, None, False)
+        content_release = response['content']
+        response = self.publisher_api.get_content_release_details_query_parameters(
+            'site1', {'frontend_id': 'v0.1', 'domain': 'test.co.uk'})
+        self.assertEqual(response['status'], 'error')
+        self.assertEqual(response['error_code'], 'content_release_more_than_one')
+    
+    def test_get_extra_paramater(self):
+        """ unittest for test_get_extra_paramater """
+
+        #  ContentReleaseExtraParameter doesn't exist
+        response = self.publisher_api.get_extra_paramater('site1', uuid.uuid4(), 'frontend_id')
+        self.assertEqual(response['status'], 'error')
+        self.assertEqual(response['error_code'], 'content_release_extra_parameter_does_not_exist')
+
+        # get extra parameter
+        parameters = {'frontend_id': 'v0.1', 'domain': 'test.co.uk'}
+        response = self.publisher_api.add_content_release(
+            'site1', 'title1', '0.0.1', parameters, None, False)
+        content_release = response['content']
+        response = self.publisher_api.get_extra_paramater('site1', content_release.uuid, 'frontend_id')
+        self.assertEqual(response['status'], 'success')
+        self.assertEqual(response['content'], parameters['frontend_id'])
+    
+    def test_get_extra_paramaters(self):
+        """ unittest for test_get_extra_paramater """
+
+        #  No ContentReleaseExtraParameter
+        response = self.publisher_api.get_extra_paramaters('site1', uuid.uuid4())
+        self.assertEqual(response['status'], 'success')
+        self.assertEqual(type(response['content']), QuerySet)
+        self.assertEqual(response['content'].count(), 0)
+
+        # get extra parameters
+        parameters = {'frontend_id': 'v0.1', 'domain': 'test.co.uk'}
+        response = self.publisher_api.add_content_release(
+            'site1', 'title1', '0.0.1', parameters, None, False)
+        content_release = response['content']
+        response = self.publisher_api.get_extra_paramaters('site1', content_release.uuid)
+        self.assertEqual(response['status'], 'success')
+        self.assertEqual(response['content'].count(), 2)
+        self.assertEqual(response['content'].get(key='frontend_id').content, parameters['frontend_id'])
+        self.assertEqual(response['content'].get(key='domain').content, parameters['domain'])
 
     def test_get_live_content_release(self):
         """ unittest for get_live_content_release """
@@ -694,7 +822,6 @@ class PublisherAPIJsonTestCase(TestCase):
         response = json.loads(response_json)
         self.assertEqual(response['status'], 'success')
         self.assertEqual(response['content'], {
-            'id': response['content']['id'],
             'uuid': response['content']['uuid'],
             'version': '0.0.1',
             'title': 'title1',
@@ -755,7 +882,6 @@ class PublisherAPIJsonTestCase(TestCase):
         response = json.loads(response_json)
         self.assertEqual(response['status'], 'success')
         self.assertEqual(response['content'], {
-            'id': content_release.id,
             'uuid': str(content_release.uuid),
             'version': '0.0.1',
             'title': 'title1',
@@ -780,7 +906,6 @@ class PublisherAPIJsonTestCase(TestCase):
         response = json.loads(response_json)
         self.assertEqual(response['status'], 'success')
         self.assertEqual(response['content'], {
-            'id': content_release.id,
             'uuid': str(content_release.uuid),
             'version': '0.0.1',
             'title': 'title1',
@@ -803,7 +928,6 @@ class PublisherAPIJsonTestCase(TestCase):
         self.assertEqual(response['status'], 'success')
         self.assertEqual(len(response['content']), 1)
         self.assertEqual(response['content'][0], {
-            'id': content_release.id,
             'uuid': str(content_release.uuid),
             'version': '0.0.1',
             'title': 'title1',
@@ -833,8 +957,31 @@ class PublisherAPIJsonTestCase(TestCase):
         response = json.loads(response_json)
         self.assertEqual(response['status'], 'success')
         self.assertEqual(response['content'], {
-            'id': response['content']['id'],
             'document_key': document_key,
             'document_json': document_json,
             'content_type': 'content',
         })
+    
+    def test_get_extra_paramaters(self):
+        """ unittest for test_get_extra_paramater """
+
+        # get extra parameters
+        parameters = {'frontend_id': 'v0.1', 'domain': 'test.co.uk'}
+        response_json = self.publisher_api.add_content_release(
+            'site1', 'title1', '0.0.1', parameters, None, False)
+        response = json.loads(response_json)
+        content_release = response['content']
+        response_json = self.publisher_api.get_extra_paramaters('site1', content_release['uuid'])
+        response = json.loads(response_json)
+        self.assertEqual(response['status'], 'success')
+        self.assertEqual(response['content'], [
+            {
+                'key': 'frontend_id',
+                'content': 'v0.1',
+                'content_release_uuid': content_release['uuid']
+            },{
+                'key': 'domain',
+                'content': 'test.co.uk',
+                'content_release_uuid': content_release['uuid']
+            }
+        ])
