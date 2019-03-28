@@ -34,6 +34,10 @@ You'll get all this lot installed nicely with (https://docs.docker.com/docker-fo
 
 
 ### Setup locally
+Add git hook
+```
+./scripts/install-hooks.sh
+```
 Build the image
 ```
 docker-compose build
