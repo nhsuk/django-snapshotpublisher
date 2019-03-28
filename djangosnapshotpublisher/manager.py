@@ -34,7 +34,3 @@ class ContentReleaseManager(models.Manager):
             uuid=uuid,
             publish_datetime__lt=timezone.now(),
          ).exists()
-
-# class ReleaseDocumentManager(models.Manager):
-#     """ ReleaseDocumentManager """
-#     pass

@@ -21,4 +21,13 @@ class ContentReleaseAdmin(admin.ModelAdmin):
             return []
 
 admin.site.register(ContentRelease, ContentReleaseAdmin)
-admin.site.register(ReleaseDocument)
+
+
+class ReleaseDocumentAdmin(admin.ModelAdmin):
+    """ ReleaseDocumentAdmin """
+    ordering = ['content_type', 'document_key']
+    list_display = ('content_type', 'document_key', )
+    list_filter = ('content_type', 'document_key', 'content_releases', )
+
+
+admin.site.register(ReleaseDocument, ReleaseDocumentAdmin)

@@ -11,7 +11,7 @@ from django.forms.models import model_to_dict
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
-from .manager import ContentReleaseManager #, ReleaseDocumentManager
+from .manager import ContentReleaseManager
 
 
 CONTENT_RELEASE_STATUS = (
@@ -46,10 +46,12 @@ def valide_version(value):
 
 class ReleaseDocument(models.Model):
     """ ReleaseDocument """
-    document_key = models.SlugField(max_length=100)
+    document_key = models.SlugField(max_length=250)
     content_type = models.SlugField(max_length=100, default='content')
     document_json = models.TextField(null=True)
-    # objects = ReleaseDocumentManager()
+
+    def __str__(self):
+        return '{} - {}'.format(self.content_type, self.document_key)
 
     def to_dict(self):
         """ to_dict """
@@ -59,7 +61,7 @@ class ReleaseDocument(models.Model):
 
 
 class ContentReleaseExtraParameter(models.Model):
-    key = models.SlugField(max_length=100)
+    key = models.SlugField(max_length=255)
     content = models.TextField(null=True)
     content_release = models.ForeignKey(
         'ContentRelease',
@@ -79,7 +81,7 @@ class ContentReleaseExtraParameter(models.Model):
 
 class ContentRelease(models.Model):
     """ ContentRelease """
-    uuid = models.UUIDField(max_length=255, unique=True, default=uuid.uuid4, editable=False)
+    uuid = models.UUIDField(max_length=255, unique=True, default=uuid.uuid4)
     version = models.CharField(max_length=20, unique=True)
     title = models.CharField(max_length=100)
     site_code = models.SlugField(max_length=100)
@@ -92,7 +94,11 @@ class ContentRelease(models.Model):
         null=True,
         on_delete=models.CASCADE,
     )
-    release_documents = models.ManyToManyField(ReleaseDocument, related_name='content_releases')
+    release_documents = models.ManyToManyField(
+        ReleaseDocument,
+        blank=True,
+        related_name='content_releases'
+    )
     is_live = models.BooleanField(default=False)
     objects = ContentReleaseManager()
 
