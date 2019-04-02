@@ -90,8 +90,23 @@ class ContentReleaseTestCase(TestCase):
             site_code='site1',
             status=0,
             use_current_live_as_base_release=False,
-            base_release=content_release1,
+            base_release=None,
         )
+        content_release2.save()
+
+        # set base_release for a not live base_release
+        try:
+            content_release2.base_release = content_release1
+            content_release2.save()
+        except ValidationError as v_e:
+            self.assertEqual('base_release_should_be_none', v_e.code)
+
+        # set base_release for a live base_release
+        content_release1.status = 1
+        content_release1.publish_datetime = timezone.now() - timezone.timedelta(minutes=10)
+        content_release1.save()
+
+        content_release2.base_release = content_release1
         content_release2.save()
 
         # use_current_live_as_base_release True and base_release not None

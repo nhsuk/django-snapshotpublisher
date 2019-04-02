@@ -126,6 +126,15 @@ class ContentRelease(models.Model):
                      release'),
                 code='base_release_should_be_none',
             )
+
+        if self.base_release and self.base_release.status != 1 and \
+                self.base_release.publish_datetime and \
+                self.base_release.publish_datetime < timezone.now():
+            raise ValidationError(
+                _('Base release must to be live'),
+                code='base_release_should_be_none',
+            )
+
         super(ContentRelease, self).save(*args, **kwargs)
 
     def to_dict(self):
