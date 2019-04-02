@@ -337,3 +337,65 @@ class PublisherAPI:
             return self.send_response('content_release_does_not_exist')
         except ReleaseDocument.DoesNotExist:
             return self.send_response('release_document_does_not_exist')
+
+    def compare_content_releases(self, site_code, my_release_uuid, compare_to_release_uuid):
+        try:
+            comparison = []
+            my_content_release = ContentRelease.objects.get(
+                site_code=site_code, uuid=my_release_uuid)
+            releases = [my_content_release]
+            if my_content_release.use_current_live_as_base_release:
+                releases.append(ContentRelease.objects.live(my_content_release.site_code))
+            elif my_content_release.base_release:
+                releases.append(my_content_release.base_release)
+            my_release_documents = ReleaseDocument.objects.filter(
+                content_releases__in=releases,
+            ).values_list('document_key', 'content_type')
+
+            compare_to_content_release = ContentRelease.objects.get(
+                site_code=site_code, uuid=compare_to_release_uuid)
+            releases = [compare_to_content_release]
+            if compare_to_content_release.use_current_live_as_base_release:
+                releases.append(ContentRelease.objects.live(my_content_release.site_code))
+            elif compare_to_content_release.base_release:
+                releases.append(compare_to_content_release.base_release)
+            compare_to_release_documents = ReleaseDocument.objects.filter(
+                content_releases__in=releases,
+            ).values_list('document_key', 'content_type')
+
+            # Added
+            for my_release_document in my_release_documents:
+                if my_release_document not in compare_to_release_documents:
+                    comparison.append({
+                        'document_key': my_release_document[0],
+                        'content_type': my_release_document[1],
+                        'diff': 'Added',
+                    })
+
+            # Removed
+            for compare_to_release_document in compare_to_release_documents:
+                if compare_to_release_document not in my_release_documents:
+                    comparison.append({
+                        'document_key': compare_to_release_document[0],
+                        'content_type': compare_to_release_document[1],
+                        'diff': 'Removed',
+                    })
+
+            # Updated
+            updated_release_documents = ReleaseDocument.objects.filter(
+                content_releases=my_content_release,
+            ).exclude(
+                content_releases=compare_to_content_release,
+            ).values_list('document_key', 'content_type')
+
+            for updated_release_document in updated_release_documents:
+                if updated_release_document in compare_to_release_documents:
+                    comparison.append({
+                        'document_key': updated_release_document[0],
+                        'content_type': updated_release_document[1],
+                        'diff': 'Changed',
+                    })
+
+            return self.send_response('success', comparison)
+        except ContentRelease.DoesNotExist:
+            return self.send_response('content_release_does_not_exist')
