@@ -49,6 +49,7 @@ class ReleaseDocument(models.Model):
     document_key = models.SlugField(max_length=250)
     content_type = models.SlugField(max_length=100, default='content')
     document_json = models.TextField(null=True)
+    deleted = models.BooleanField(default=False)
 
     def __str__(self):
         return '{} - {}'.format(self.content_type, self.document_key)
@@ -100,6 +101,7 @@ class ContentRelease(models.Model):
         related_name='content_releases'
     )
     is_live = models.BooleanField(default=False)
+
     objects = ContentReleaseManager()
 
     def __str__(self):

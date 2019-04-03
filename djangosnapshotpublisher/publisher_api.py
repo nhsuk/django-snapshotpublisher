@@ -5,6 +5,7 @@
 
 from datetime import datetime
 from functools import reduce
+from operator import itemgetter
 import json
 
 from django.db.models import Q, Count
@@ -306,6 +307,7 @@ class PublisherAPI:
                     content_type=content_type,
                 )
                 release_document.document_json = document_json
+                release_document.deleted = False
                 release_document.save()
             except ReleaseDocument.DoesNotExist:
                 release_document = ReleaseDocument(
@@ -338,9 +340,32 @@ class PublisherAPI:
         except ReleaseDocument.DoesNotExist:
             return self.send_response('release_document_does_not_exist')
 
+    def delete_document_from_content_release(
+            self, site_code, release_uuid, document_key, content_type='content'):
+        """ delete_document_from_content_release """
+        try:
+            content_release = ContentRelease.objects.get(site_code=site_code, uuid=release_uuid)
+            release_document, created = ReleaseDocument.objects.update_or_create(
+                document_key=document_key,
+                content_type=content_type,
+                content_releases__id=content_release.id,
+                defaults={
+                    'document_json': None,
+                    'deleted': True,
+                }
+            )
+            if created:
+                content_release.release_documents.add(release_document)
+                content_release.save()
+            return self.send_response('success')
+        except ContentRelease.DoesNotExist:
+            return self.send_response('content_release_does_not_exist')
+
     def compare_content_releases(self, site_code, my_release_uuid, compare_to_release_uuid):
         try:
             comparison = []
+
+            # get my_content_release documents
             my_content_release = ContentRelease.objects.get(
                 site_code=site_code, uuid=my_release_uuid)
             releases = [my_content_release]
@@ -352,6 +377,7 @@ class PublisherAPI:
                 content_releases__in=releases,
             ).values_list('document_key', 'content_type')
 
+            # get compare_to_content_release documents
             compare_to_content_release = ContentRelease.objects.get(
                 site_code=site_code, uuid=compare_to_release_uuid)
             releases = [compare_to_content_release]
@@ -363,7 +389,7 @@ class PublisherAPI:
                 content_releases__in=releases,
             ).values_list('document_key', 'content_type')
 
-            # Added
+            # get added document
             for my_release_document in my_release_documents:
                 if my_release_document not in compare_to_release_documents:
                     comparison.append({
@@ -372,7 +398,7 @@ class PublisherAPI:
                         'diff': 'Added',
                     })
 
-            # Removed
+            # get removed document
             for compare_to_release_document in compare_to_release_documents:
                 if compare_to_release_document not in my_release_documents:
                     comparison.append({
@@ -381,9 +407,10 @@ class PublisherAPI:
                         'diff': 'Removed',
                     })
 
-            # Updated
+            # get updated document
             updated_release_documents = ReleaseDocument.objects.filter(
                 content_releases=my_content_release,
+                deleted=False,
             ).exclude(
                 content_releases=compare_to_content_release,
             ).values_list('document_key', 'content_type')
@@ -395,7 +422,23 @@ class PublisherAPI:
                         'content_type': updated_release_document[1],
                         'diff': 'Changed',
                     })
+            
+            # get remove document
+            updated_release_documents = ReleaseDocument.objects.filter(
+                content_releases=my_content_release,
+                deleted=True,
+            ).values_list('document_key', 'content_type')
 
+            for updated_release_document in updated_release_documents:
+                if updated_release_document in compare_to_release_documents:
+                    comparison.append({
+                        'document_key': updated_release_document[0],
+                        'content_type': updated_release_document[1],
+                        'diff': 'Removed',
+                    })
+
+            # sort comparison dict    
+            comparison = sorted(comparison, key=itemgetter('diff', 'content_type', 'document_key'))
             return self.send_response('success', comparison)
         except ContentRelease.DoesNotExist:
             return self.send_response('content_release_does_not_exist')

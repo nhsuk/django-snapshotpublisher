@@ -262,3 +262,28 @@ Unpublish document from the given content release, removing any associated artef
     * document_key (string)
     * content_type (string, optional, default='content')
 * response [TODO]
+
+### delete_document_from_content_release
+```python
+delete_document_from_content_release(site_code, release_uuid, document_key, content_type='content')
+```
+Remove document from the given content release and won't import the corresponding document from his base content release.
+* Description for specifque configuration
+    * SQL: Create or Update ReleaseDocument with not document_json and deleted set to True
+* paramaters
+    * site_code (string)
+    * release_uuid (uuid)
+    * document_key (string)
+    * content_type (string, optional, default='content')
+* response [TODO]
+
+### compare_content_releases
+```python
+compare_content_releases(site_code, my_release_uuid, compare_to_release_uuid)
+```
+Compare documents for a content release to the documents from another content release.
+* paramaters
+    * site_code (string)
+    * my_release_uuid (uuid)
+    * compare_to_release_uuid (uuid)
+* response [TODO]

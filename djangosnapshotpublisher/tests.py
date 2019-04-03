@@ -870,13 +870,13 @@ class PublisherAPITestCase(TestCase):
                 'content_type': 'content',
                 'diff': 'Added',
             }, {
-                'document_key': 'key1',
-                'content_type': 'content',
-                'diff': 'Removed',
-            }, {
                 'document_key': 'key2',
                 'content_type': 'content',
                 'diff': 'Changed',
+            }, {
+                'document_key': 'key1',
+                'content_type': 'content',
+                'diff': 'Removed',
             }
         ])
 
@@ -946,6 +946,133 @@ class PublisherAPITestCase(TestCase):
                 'document_key': 'key2',
                 'content_type': 'content',
                 'diff': 'Changed',
+            }
+        ])
+
+    def test_delete_document_from_content_release(self):
+        """ unittest for compare_content_releases """
+
+        #create release1 and documents
+        response = self.publisher_api.add_content_release('site1', 'title1', '0.0.1')
+        content_release1 = response['content']
+
+        #add key1, key2, key3 and key4 to release1
+        document_json = json.dumps({'title': 'Test1'})
+        response = self.publisher_api.publish_document_to_content_release(
+            'site1',
+            content_release1.uuid,
+            document_json,
+            'key1',
+        )
+        document_json = json.dumps({'title': 'Test2'})
+        response = self.publisher_api.publish_document_to_content_release(
+            'site1',
+            content_release1.uuid,
+            document_json,
+            'key2',
+        )
+        document_json = json.dumps({'title': 'Test3'})
+        response = self.publisher_api.publish_document_to_content_release(
+            'site1',
+            content_release1.uuid,
+            document_json,
+            'key3',
+        )
+        document_json = json.dumps({'title': 'Test4'})
+        response = self.publisher_api.publish_document_to_content_release(
+            'site1',
+            content_release1.uuid,
+            document_json,
+            'key4',
+        )
+        self.publisher_api.set_live_content_release('site1', content_release1.uuid)
+
+        #create release2 and documents
+        response = self.publisher_api.add_content_release(
+            'site1', 'title2', '0.0.2', None, None, True)
+        content_release2 = response['content']
+
+        #add key5 to release2
+        document_json = json.dumps({'title': 'Test5'})
+        response = self.publisher_api.publish_document_to_content_release(
+            'site1',
+            content_release2.uuid,
+            document_json,
+            'key5',
+        )
+
+        #update key1 to release2 then delete it
+        document_json = json.dumps({'title': 'Test1.1'})
+        response = self.publisher_api.publish_document_to_content_release(
+            'site1',
+            content_release2.uuid,
+            document_json,
+            'key1',
+        )
+        response = self.publisher_api.delete_document_from_content_release(
+            'site1',
+            content_release2.uuid,
+            'key1',
+        )
+        self.assertEqual(response['status'], 'success')
+
+        #update key3 to release2
+        document_json = json.dumps({'title': 'Test3.1'})
+        response = self.publisher_api.publish_document_to_content_release(
+            'site1',
+            content_release2.uuid,
+            document_json,
+            'key3',
+        )
+
+        #delete key2 to release2
+        response = self.publisher_api.delete_document_from_content_release(
+            'site1',
+            content_release2.uuid,
+            'key2',
+        )
+        self.assertEqual(response['status'], 'success')
+
+        #delete then update key4 to release2
+        response = self.publisher_api.delete_document_from_content_release(
+            'site1',
+            content_release2.uuid,
+            'key4',
+        )
+        self.assertEqual(response['status'], 'success')
+        document_json = json.dumps({'title': 'Test4.1'})
+        response = self.publisher_api.publish_document_to_content_release(
+            'site1',
+            content_release2.uuid,
+            document_json,
+            'key4',
+        )
+
+        # compare release2 to release1
+        response = self.publisher_api.compare_content_releases(
+            'site1', content_release2.uuid, content_release1.uuid)
+        self.assertEqual(response['status'], 'success')
+        self.assertEqual(response['content'], [
+            {
+                'document_key': 'key5',
+                'content_type': 'content',
+                'diff': 'Added',
+            }, {
+                'document_key': 'key3',
+                'content_type': 'content',
+                'diff': 'Changed',
+            }, {
+                'document_key': 'key4',
+                'content_type': 'content',
+                'diff': 'Changed',
+            }, {
+                'document_key': 'key1',
+                'content_type': 'content',
+                'diff': 'Removed',
+            }, {
+                'document_key': 'key2',
+                'content_type': 'content',
+                'diff': 'Removed',
             }
         ])
 
@@ -1103,6 +1230,7 @@ class PublisherAPIJsonTestCase(TestCase):
             'document_key': document_key,
             'document_json': document_json,
             'content_type': 'content',
+            'deleted': False,
         })
     
     def test_get_extra_paramaters(self):
