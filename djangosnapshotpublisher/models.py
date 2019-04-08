@@ -44,10 +44,30 @@ def valide_version(value):
     return valid
 
 
+class ReleaseDocumentExtraParameter(models.Model):
+    key = models.SlugField(max_length=255)
+    content = models.TextField(null=True)
+    release_document = models.ForeignKey(
+        'ReleaseDocument',
+        blank=False,
+        null=False,
+        on_delete=models.CASCADE,
+        related_name='parameters',
+    )
+
+    def to_dict(self):
+        """ to_dict """
+        instance_dict = model_to_dict(self)
+        instance_dict['release_document_uuid'] = self.release_document.uuid
+        instance_dict.pop('release_document')
+        instance_dict.pop('id')
+        return instance_dict
+
+
 class ReleaseDocument(models.Model):
     """ ReleaseDocument """
-    document_key = models.SlugField(max_length=250)
-    content_type = models.SlugField(max_length=100, default='content')
+    document_key = models.CharField(max_length=250)
+    content_type = models.CharField(max_length=100, default='content')
     document_json = models.TextField(null=True)
     deleted = models.BooleanField(default=False)
 
@@ -69,6 +89,7 @@ class ContentReleaseExtraParameter(models.Model):
         blank=False,
         null=False,
         on_delete=models.CASCADE,
+        related_name='parameters',
     )
 
     def to_dict(self):

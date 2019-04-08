@@ -8,13 +8,15 @@ from functools import reduce
 from operator import itemgetter
 import json
 
-from django.db.models import Q, Count
+from django.db.models import CharField, Case, Q, Count, When, Value as V
+from django.db.models.functions import Concat
 from django.db.models.query import QuerySet
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from .lazy_encoder import LazyEncoder
-from .models import ContentRelease, ReleaseDocument, ContentReleaseExtraParameter
+from .models import (ContentRelease, ReleaseDocumentExtraParameter, ReleaseDocument,
+    ContentReleaseExtraParameter)
 
 
 API_TYPES = ['django', 'json']
@@ -295,12 +297,14 @@ class PublisherAPI:
             return self.send_response('release_document_does_not_exist')
 
     def publish_document_to_content_release(
-            self, site_code, release_uuid, document_json, document_key, content_type='content'):
+            self, site_code, release_uuid, document_json, document_key, content_type='content',
+            parameters=None):
         """ publish_document_to_content_release """
         try:
             content_release = ContentRelease.objects.get(site_code=site_code, uuid=release_uuid)
             created = False
             try:
+                release_document = None
                 release_document = ReleaseDocument.objects.get(
                     document_key=document_key,
                     content_releases=content_release.id,
@@ -309,6 +313,9 @@ class PublisherAPI:
                 release_document.document_json = document_json
                 release_document.deleted = False
                 release_document.save()
+
+                # clear then store parameters
+                ReleaseDocumentExtraParameter.objects.filter(release_document=release_document).delete()
             except ReleaseDocument.DoesNotExist:
                 release_document = ReleaseDocument(
                     document_key=document_key,
@@ -319,6 +326,17 @@ class PublisherAPI:
                 content_release.release_documents.add(release_document)
                 content_release.save()
                 created = True
+
+            # store parameters
+            if parameters:
+                for key, value in parameters.items():
+                    extra_parameter = ReleaseDocumentExtraParameter(
+                        key=key,
+                        content=value,
+                        release_document=release_document,
+                    )
+                    extra_parameter.save()
+
             return self.send_response('success', {'created': created})
         except ContentRelease.DoesNotExist:
             return self.send_response('content_release_does_not_exist')
@@ -375,7 +393,10 @@ class PublisherAPI:
                 releases.append(my_content_release.base_release)
             my_release_documents = ReleaseDocument.objects.filter(
                 content_releases__in=releases,
-            ).values_list('document_key', 'content_type')
+            ).annotate(
+                key_content=Concat(
+                    'document_key', V('__'), 'content_type'),
+            ).values_list('key_content', flat=True)
 
             # get compare_to_content_release documents
             compare_to_content_release = ContentRelease.objects.get(
@@ -387,58 +408,102 @@ class PublisherAPI:
                 releases.append(compare_to_content_release.base_release)
             compare_to_release_documents = ReleaseDocument.objects.filter(
                 content_releases__in=releases,
-            ).values_list('document_key', 'content_type')
+            ).annotate(
+                key_content=Concat(
+                    'document_key', V('__'), 'content_type'),
+            ).values_list('key_content', flat=True)
 
             # get added document
-            for my_release_document in my_release_documents:
-                if my_release_document not in compare_to_release_documents:
-                    comparison.append({
-                        'document_key': my_release_document[0],
-                        'content_type': my_release_document[1],
-                        'diff': 'Added',
-                    })
+            added_release_document = ReleaseDocument.objects.annotate(
+                key_content=Concat(
+                    'document_key', V('__'), 'content_type'),
+                diff=V('Added', output_field=CharField()),
+            ).exclude(
+                key_content__in=compare_to_release_documents,
+            ).filter(
+                key_content__in=my_release_documents,
+            ).values(
+                'document_key', 'content_type', 'diff'
+            )
 
             # get removed document
-            for compare_to_release_document in compare_to_release_documents:
-                if compare_to_release_document not in my_release_documents:
-                    comparison.append({
-                        'document_key': compare_to_release_document[0],
-                        'content_type': compare_to_release_document[1],
-                        'diff': 'Removed',
-                    })
-
-            # get updated document
-            updated_release_documents = ReleaseDocument.objects.filter(
-                content_releases=my_content_release,
-                deleted=False,
+            removed_release_document = ReleaseDocument.objects.annotate(
+                key_content=Concat(
+                    'document_key', V('__'), 'content_type'),
+                diff=V('Removed', output_field=CharField()),
+            ).filter(
+                key_content__in=compare_to_release_documents,
             ).exclude(
-                content_releases=compare_to_content_release,
-            ).values_list('document_key', 'content_type')
+                key_content__in=my_release_documents,
+            ).values(
+                'document_key', 'content_type', 'diff'
+            )
 
-            for updated_release_document in updated_release_documents:
-                if updated_release_document in compare_to_release_documents:
-                    comparison.append({
-                        'document_key': updated_release_document[0],
-                        'content_type': updated_release_document[1],
-                        'diff': 'Changed',
-                    })
-            
-            # get remove document
-            updated_release_documents = ReleaseDocument.objects.filter(
-                content_releases=my_content_release,
-                deleted=True,
-            ).values_list('document_key', 'content_type')
+            # get changed document
+            changed_release_document = ReleaseDocument.objects.annotate(
+                key_content=Concat(
+                    'document_key', V('__'), 'content_type'),
+                diff=Case(
+                    When(deleted=True, then=V('Removed')),
+                    default=V('Changed'),
+                    output_field=CharField(),
+                ),
+            ).filter(
+                key_content__in=set(compare_to_release_documents) & set(my_release_documents),
+            ).values(
+                'key_content', 'document_key', 'content_type', 'diff', 'deleted'
+            ).annotate(
+                count_key_content=Count('key_content'),
+            ).filter(
+                Q(count_key_content__gt=1) | Q(deleted=True)
+            ).values(
+                'document_key', 'content_type', 'diff',
+            )
 
-            for updated_release_document in updated_release_documents:
-                if updated_release_document in compare_to_release_documents:
-                    comparison.append({
-                        'document_key': updated_release_document[0],
-                        'content_type': updated_release_document[1],
-                        'diff': 'Removed',
-                    })
+            # get extra
+            release_documents = list(added_release_document) + list(removed_release_document) + list(changed_release_document)
 
-            # sort comparison dict    
-            comparison = sorted(comparison, key=itemgetter('diff', 'content_type', 'document_key'))
+            for release_document in release_documents:
+                if release_document['diff'] in ['Added', 'Removed']:
+                    extra_parameters = ReleaseDocumentExtraParameter.objects.filter(
+                        release_document__document_key=release_document['document_key'],
+                        release_document__content_type=release_document['content_type'],
+                        release_document__content_releases=my_content_release.id if release_document['diff'] == 'Added' else compare_to_content_release.id,
+                    ).values(
+                        'key', 'content'
+                    )
+
+                    if extra_parameters.exists():
+                        release_document.update({
+                            'parameters': {p['key']:p['content'] for p in extra_parameters}
+                        })
+
+                if release_document['diff'] == 'Changed':
+                    new_extra_parameters = ReleaseDocumentExtraParameter.objects.filter(
+                        release_document__document_key=release_document['document_key'],
+                        release_document__content_type=release_document['content_type'],
+                        release_document__content_releases=my_content_release.id
+                    ).values(
+                        'key', 'content'
+                    )
+                    old_extra_parameters = ReleaseDocumentExtraParameter.objects.filter(
+                        release_document__document_key=release_document['document_key'],
+                        release_document__content_type=release_document['content_type'],
+                        release_document__content_releases=compare_to_content_release.id
+                    ).values(
+                        'key', 'content'
+                    )
+
+                    if new_extra_parameters.exists() or old_extra_parameters.exists():
+                        release_document.update({
+                            'parameters': {
+                                'release_from': {p['key']:p['content'] for p in new_extra_parameters},
+                                'release_compare_to': {p['key']:p['content'] for p in old_extra_parameters},
+                            }
+                        })
+
+            # sort comparison dict
+            comparison = sorted(release_documents, key=itemgetter('diff', 'content_type', 'document_key'))
             return self.send_response('success', comparison)
         except ContentRelease.DoesNotExist:
             return self.send_response('content_release_does_not_exist')

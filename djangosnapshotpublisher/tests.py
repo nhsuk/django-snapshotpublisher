@@ -1076,6 +1076,79 @@ class PublisherAPITestCase(TestCase):
             }
         ])
 
+    def test_compare_content_releases_with_paramters(self):
+        """ unittest for compare_content_releases """
+
+        #create release1 and documents
+        response = self.publisher_api.add_content_release('site1', 'title1', '0.0.1')
+        content_release1 = response['content']
+        document_json = json.dumps({'title': 'Test1'})
+        response = self.publisher_api.publish_document_to_content_release(
+            'site1',
+            content_release1.uuid,
+            document_json,
+            'key1',
+            'content',
+            {'p1': 'test1', 'p2': 'test2'},
+        )
+        document_json = json.dumps({'title': 'Test2'})
+        response = self.publisher_api.publish_document_to_content_release(
+            'site1',
+            content_release1.uuid,
+            document_json,
+            'key2',
+            'content',
+            {'p1': 'test3', 'p2': 'test4'},
+        )
+
+        #create release2 and documents
+        response = self.publisher_api.add_content_release('site1', 'title2', '0.0.2')
+        content_release2 = response['content']
+        document_json = json.dumps({'title': 'Test3'})
+        response = self.publisher_api.publish_document_to_content_release(
+            'site1',
+            content_release2.uuid,
+            document_json,
+            'key2',
+            'content',
+            {'p1': 'test5', 'p2': 'test6'},
+        )
+        document_json = json.dumps({'title': 'Test4'})
+        response = self.publisher_api.publish_document_to_content_release(
+            'site1',
+            content_release2.uuid,
+            document_json,
+            'key3',
+            'content',
+            {'p1': 'test7', 'p2': 'test8'},
+        )
+
+        # Compare the releases
+        response = self.publisher_api.compare_content_releases(
+            'site1', content_release2.uuid, content_release1.uuid)
+        self.assertEqual(response['status'], 'success')
+        self.assertEqual(response['content'],   [
+            {
+                'document_key': 'key3',
+                'content_type': 'content',
+                'diff': 'Added',
+                'parameters': {'p1': 'test7', 'p2': 'test8'},
+            }, {
+                'document_key': 'key2',
+                'content_type': 'content',
+                'diff': 'Changed',
+                'parameters': {
+                    'release_from': {'p1': 'test5', 'p2': 'test6'},
+                    'release_compare_to': {'p1': 'test3', 'p2': 'test4'},
+                }
+            }, {
+                'document_key': 'key1',
+                'content_type': 'content',
+                'diff': 'Removed',
+                'parameters': {'p1': 'test1', 'p2': 'test2'},
+            }
+        ])
+
 
 class PublisherAPIJsonTestCase(TestCase):
     """ unittest for ublisherAPITest with api_type=json """
