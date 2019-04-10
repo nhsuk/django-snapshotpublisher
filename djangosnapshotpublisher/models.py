@@ -104,7 +104,7 @@ class ContentReleaseExtraParameter(models.Model):
 class ContentRelease(models.Model):
     """ ContentRelease """
     uuid = models.UUIDField(max_length=255, unique=True, default=uuid.uuid4)
-    version = models.CharField(max_length=20, unique=True)
+    version = models.CharField(max_length=20)
     title = models.CharField(max_length=100)
     site_code = models.SlugField(max_length=100)
     status = models.IntegerField(choices=CONTENT_RELEASE_STATUS, default=0)

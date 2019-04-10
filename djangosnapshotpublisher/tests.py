@@ -7,6 +7,7 @@ import json
 import uuid
 
 from django.core.exceptions import ValidationError
+from django.core.management import call_command
 from django.db.models.query import QuerySet
 from django.db.utils import IntegrityError
 from django.test import TestCase
@@ -213,7 +214,7 @@ class ContentReleaseTestCase(TestCase):
 
 
 class PublisherAPITestCase(TestCase):
-    """ unittest for ublisherAPITest with api_type=django """
+    """ unittest for PublisherAPITest with api_type=django """
 
     def setUp(self):
         """ setUp """
@@ -1151,7 +1152,7 @@ class PublisherAPITestCase(TestCase):
 
 
 class PublisherAPIJsonTestCase(TestCase):
-    """ unittest for ublisherAPITest with api_type=json """
+    """ unittest for PublisherAPIJsonTest with api_type=json """
 
     def setUp(self):
         """ setUp """
@@ -1329,3 +1330,87 @@ class PublisherAPIJsonTestCase(TestCase):
                 'content_release_uuid': content_release['uuid']
             }
         ])
+
+class PublisherScriptTestCase(TestCase):
+    """ unittest for PublisherScriptTest with api_type=django """
+
+    def setUp(self):
+        """ setUp """
+        self.publisher_api = PublisherAPI(api_type='django')
+        self.datetime_past = timezone.now() - timezone.timedelta(minutes=10)
+        self.datetime_future = timezone.now() + timezone.timedelta(minutes=10)
+
+    def test_schedule_publish_date(self):
+        #  Create ContentReleases
+        response = self.publisher_api.add_content_release('site1', 'title1', '0.0.1')
+        content_release1 = response['content']
+        response = self.publisher_api.add_content_release('site1', 'title2', '0.0.2')
+        content_release2 = response['content']
+        response = self.publisher_api.add_content_release('site1', 'title3', '0.0.3')
+        content_release3 = response['content']
+
+        response = self.publisher_api.add_content_release('site2', 'title4', '0.0.1')
+        content_release4 = response['content']
+        response = self.publisher_api.add_content_release('site2', 'title5', '0.0.2')
+        content_release5 = response['content']
+        response = self.publisher_api.add_content_release('site2', 'title6', '0.0.3')
+        content_release6 = response['content']
+
+        content_release1.publish_datetime = self.datetime_past
+        content_release1.status = 1
+        content_release1.save()
+
+        content_release2.publish_datetime = self.datetime_past
+        content_release2.status = 1
+        content_release2.save()
+
+        content_release3.publish_datetime = self.datetime_future
+        content_release3.status = 1
+        content_release3.save()
+
+        content_release4.publish_datetime = self.datetime_past
+        content_release4.status = 1
+        content_release4.save()
+
+        content_release5.publish_datetime = self.datetime_future
+        content_release5.status = 1
+        content_release5.save()
+
+        content_release6.publish_datetime = self.datetime_past
+        content_release6.status = 1
+        content_release6.save()
+
+        call_command('release_publisher')
+
+        live_content_release_site1 = ContentRelease.objects.filter(
+            is_live=True,
+            site_code='site1',
+        ).order_by('title').values_list('title', flat=True)
+
+        self.assertEqual(list(live_content_release_site1), ['title1', 'title2'])
+
+        live_content_release_site2 = ContentRelease.objects.filter(
+            is_live=True,
+            site_code='site2',
+        ).order_by('title').values_list('title', flat=True)
+
+        self.assertEqual(list(live_content_release_site2), ['title4', 'title6'])
+
+    def test_set_live(self):
+        #  Create ContentReleases
+        response = self.publisher_api.add_content_release('site1', 'title1', '0.0.1')
+        content_release1 = response['content']
+
+        self.publisher_api.set_live_content_release(self, 'site1', content_release1.uuid)
+
+        ContentRelease.objects.get(
+            is_live=False,
+            id=content_release1.id
+        )
+
+        call_command('release_publisher')
+
+        ContentRelease.objects.get(
+            is_live=True,
+            id=content_release1.id
+        )

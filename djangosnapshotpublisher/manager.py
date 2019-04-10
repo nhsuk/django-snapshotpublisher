@@ -26,7 +26,7 @@ class ContentReleaseManager(models.Manager):
             site_code=site_code,
             status=1,
             publish_datetime__lt=timezone.now(),
-        )
+        ).order_by('-publish_datetime')
 
     def is_published(self, uuid):
         """ is_published """
