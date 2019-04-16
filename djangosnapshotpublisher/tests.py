@@ -212,6 +212,68 @@ class ContentReleaseTestCase(TestCase):
         self.assertEqual(json.loads(release_document1.document_json), {'page_title': 'Test5'})
         self.assertEqual(json.loads(release_document2.document_json), {'page_title': 'Test4'})
 
+    def test_copy_release(self):
+        """ unittest copy ContentRelease """
+
+        # create release
+        self.publisher_api = PublisherAPI(api_type='django')
+        response = self.publisher_api.add_content_release('site1', 'title1', '0.1', {
+            'p1': 'test1',
+            'p2': 'test2',
+        })
+        content_release = response['content']
+
+        # add 2 documents to te release
+        document_json = json.dumps({'page_title': 'Test1'})
+        response = self.publisher_api.publish_document_to_content_release(
+            'site1',
+            content_release.uuid,
+            document_json,
+            'key1',
+        )
+        document_json = json.dumps({'page_title': 'Test2'})
+        response = self.publisher_api.publish_document_to_content_release(
+            'site1',
+            content_release.uuid,
+            document_json,
+            'key2',
+        )
+
+        # copy release
+        new_content_release = content_release.copy({'version': '0.2'})
+
+        self.assertNotEqual(content_release.version, new_content_release.version)
+        self.assertEqual(new_content_release.version, '0.2')
+        content_release_values = ContentRelease.objects.values_list(
+            'title',
+            'site_code',
+            'status',
+            'publish_datetime',
+            'use_current_live_as_base_release',
+            'base_release',
+            'is_live',
+        )
+        self.assertEqual(
+            content_release_values.get(id=content_release.id),
+            content_release_values.get(id=new_content_release.id),
+        )
+
+        # compare release_documents
+        release_documents = content_release.release_documents.order_by(
+            'id').values('id')
+        new_release_documents = new_content_release.release_documents.order_by(
+            'id').values('id')
+        self.assertEqual(list(release_documents), list(new_release_documents))
+
+        # compare extra_parameters
+        extra_parameters = ContentReleaseExtraParameter.objects.filter(
+            content_release=content_release,
+        ).order_by('key').values('key', 'content',)
+        new_extra_parameters = ContentReleaseExtraParameter.objects.filter(
+            content_release=content_release,
+        ).order_by('key').values('key', 'content',)
+        self.assertEqual(list(extra_parameters), list(new_extra_parameters))
+
 
 class PublisherAPITestCase(TestCase):
     """ unittest for PublisherAPITest with api_type=django """
@@ -1401,7 +1463,7 @@ class PublisherScriptTestCase(TestCase):
         response = self.publisher_api.add_content_release('site1', 'title1', '0.0.1')
         content_release1 = response['content']
 
-        self.publisher_api.set_live_content_release(self, 'site1', content_release1.uuid)
+        self.publisher_api.set_live_content_release('site1', content_release1.uuid)
 
         ContentRelease.objects.get(
             is_live=False,

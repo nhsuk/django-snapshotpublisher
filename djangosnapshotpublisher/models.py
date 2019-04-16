@@ -104,7 +104,7 @@ class ContentReleaseExtraParameter(models.Model):
 class ContentRelease(models.Model):
     """ ContentRelease """
     uuid = models.UUIDField(max_length=255, unique=True, default=uuid.uuid4)
-    version = models.CharField(max_length=20)
+    version = models.CharField(max_length=20, blank=True, null=True,)
     title = models.CharField(max_length=100)
     site_code = models.SlugField(max_length=100)
     status = models.IntegerField(choices=CONTENT_RELEASE_STATUS, default=0)
@@ -130,7 +130,7 @@ class ContentRelease(models.Model):
 
     def save(self, *args, **kwargs):
         """ save """
-        if valide_version(self.version):
+        if self.version and valide_version(self.version):
             is_version_conflict_with_live = self.__class__.objects.filter(
                 site_code=self.site_code,
                 status__in=[1, 2],
@@ -201,3 +201,28 @@ class ContentRelease(models.Model):
                     self.release_documents.add(release_document)
         self.is_live = True
         self.save()
+
+    def copy(self, overide_data=None):
+        data = model_to_dict(self, exclude=['id', 'uuid', ])
+        release_documents = data.pop('release_documents')
+
+        # overide_data
+        if overide_data and type(overide_data) == dict:
+            data.update(overide_data)
+
+        new_release = ContentRelease(**data)
+        new_release.save()
+
+        # release_documents
+        for release_document in release_documents:
+            new_release.release_documents.add(release_document)
+
+        # extra_parameter
+        extra_parameters = ContentReleaseExtraParameter.objects.filter(content_release=self)
+        for extra_parameter in extra_parameters:
+            extra_parameter_data = model_to_dict(extra_parameter, exclude=['id', 'content_release'])
+            new_extra_parameter = ContentReleaseExtraParameter(**extra_parameter_data)
+            new_extra_parameter.content_release = new_release
+            new_extra_parameter.save()
+
+        return new_release

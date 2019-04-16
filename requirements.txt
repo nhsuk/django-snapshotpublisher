@@ -1,4 +1,5 @@
-django>=2.1.5
+Django>=2.1.0,<2.2
+# wait for  django-pyodbc-azure to support Django 2.2
 django-pyodbc
 django-pyodbc-azure==2.1.0.0
 djangorestframework==3.9.1
