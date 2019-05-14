@@ -1,7 +1,5 @@
-Django>=2.1.0,<2.2
-# wait for  django-pyodbc-azure to support Django 2.2
-django-pyodbc
-django-pyodbc-azure==2.1.0.0
+Django>=2.2.0,<2.3
+psycopg2==2.8.2
 djangorestframework==3.9.1
 python-crontab
 django-cors-headers==2.4.0

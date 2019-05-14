@@ -1381,17 +1381,22 @@ class PublisherAPIJsonTestCase(TestCase):
         response_json = self.publisher_api.get_extra_paramaters('site1', content_release['uuid'])
         response = json.loads(response_json)
         self.assertEqual(response['status'], 'success')
-        self.assertEqual(response['content'], [
+
+        content = response['content']
+        content.sort(key=lambda item:item['key'])
+
+        self.assertEqual(content, [
             {
-                'key': 'frontend_id',
-                'content': 'v0.1',
-                'content_release_uuid': content_release['uuid']
-            },{
                 'key': 'domain',
                 'content': 'test.co.uk',
                 'content_release_uuid': content_release['uuid']
-            }
+            }, {
+                'key': 'frontend_id',
+                'content': 'v0.1',
+                'content_release_uuid': content_release['uuid']
+            },
         ])
+
 
 class PublisherScriptTestCase(TestCase):
     """ unittest for PublisherScriptTest with api_type=django """

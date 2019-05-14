@@ -424,7 +424,7 @@ class PublisherAPI:
                 key_content__in=my_release_documents,
             ).values(
                 'document_key', 'content_type', 'diff'
-            )
+            ).distinct()
 
             # get removed document
             removed_release_document = ReleaseDocument.objects.annotate(
@@ -437,7 +437,7 @@ class PublisherAPI:
                 key_content__in=my_release_documents,
             ).values(
                 'document_key', 'content_type', 'diff'
-            )
+            ).distinct()
 
             # get changed document
             changed_release_document = ReleaseDocument.objects.annotate(
@@ -458,7 +458,7 @@ class PublisherAPI:
                 Q(count_key_content__gt=1) | Q(deleted=True)
             ).values(
                 'document_key', 'content_type', 'diff',
-            )
+            ).distinct()
 
             # get extra
             release_documents = list(added_release_document) + list(removed_release_document) + list(changed_release_document)
