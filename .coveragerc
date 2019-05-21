@@ -1,0 +1,5 @@
+[run]
+omit =
+    ./djangosnapshotpublisher/tests.py
+    ./djangosnapshotpublisher/migrations/*
+source = djangosnapshotpublisher

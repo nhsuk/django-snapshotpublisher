@@ -22,6 +22,8 @@ from .models import (ContentRelease, ReleaseDocumentExtraParameter, ReleaseDocum
 API_TYPES = ['django', 'json']
 DATETIME_FORMAT = '%Y-%m-%dT%H:%M:%S%z'
 ERROR_STATUS_CODE = {
+    'wrong_api_type': _('Invalide type, only this api_types are available: {}'.format(
+        ', '.join(API_TYPES))),
     'content_release_already_exists': _('ContentRelease already exists'),
     'content_release_does_not_exist': _('ContentRelease doesn\'t exists'),
     'content_release_title_version_not_defined': _('Title or version need to be define'),
@@ -44,8 +46,7 @@ class PublisherAPI:
 
     def __init__(self, api_type='django'):
         if api_type not in API_TYPES:
-            raise(_('Invalide type, only this api_types are available: {}'.format(
-                ', '.join(API_TYPES))))
+            raise ValueError(ERROR_STATUS_CODE['wrong_api_type'])
         self.api_type = api_type
 
     def send_response(self, status_code, data=None):
@@ -116,12 +117,13 @@ class PublisherAPI:
             
             if parameters:
                 for key, value in parameters.items():
-                    extra_parameter = ContentReleaseExtraParameter(
+                    ContentReleaseExtraParameter.objects.update_or_create(
                         key=key,
-                        content=value,
                         content_release=content_release,
+                        defaults={
+                            'content': value,
+                        }
                     )
-                    extra_parameter.save()
         
         except ContentRelease.DoesNotExist:
             return self.send_response('content_release_does_not_exist')
@@ -197,8 +199,6 @@ class PublisherAPI:
         
         if list_by_releases.filter(cr_count=len(parameters)).count() > 1:
             return self.send_response('content_release_more_than_one')
-        elif list_by_releases.filter(cr_count=len(parameters)).count() == 0:
-            return self.send_response('content_release_does_not_exist')
 
         content_release_id = list_by_releases.get(cr_count=len(parameters))['content_release']
         return self.send_response('success', ContentRelease.objects.get(id=content_release_id))
@@ -291,6 +291,25 @@ class PublisherAPI:
                 content_releases=content_release.id,
             )
             return self.send_response('success', release_document)
+        except ContentRelease.DoesNotExist:
+            return self.send_response('content_release_does_not_exist')
+        except ReleaseDocument.DoesNotExist:
+            return self.send_response('release_document_does_not_exist')
+
+    def get_document_extra_from_content_release(
+        self, site_code, release_uuid, document_key, content_type='content'):
+        """get_document_extra_from_content_release """
+        try:
+            content_release = ContentRelease.objects.get(site_code=site_code, uuid=release_uuid)
+            release_document = ReleaseDocument.objects.get(
+                document_key=document_key,
+                content_type=content_type,
+                content_releases=content_release.id,
+            )
+            extra_parameters = ReleaseDocumentExtraParameter.objects.filter(
+                release_document=release_document,
+            )
+            return self.send_response('success', extra_parameters)
         except ContentRelease.DoesNotExist:
             return self.send_response('content_release_does_not_exist')
         except ReleaseDocument.DoesNotExist:

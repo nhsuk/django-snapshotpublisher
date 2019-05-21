@@ -22,7 +22,6 @@ CONTENT_RELEASE_STATUS = (
 
 def valide_version(value):
     """ valide_version """
-    valid = True
     match_version = re.match(r'^([0-9])+(\.[0-9]+)*$', value)
     if match_version:
         version_values = value.split('.')
@@ -32,16 +31,13 @@ def valide_version(value):
                 code='version_none',
                 params={'value': value},
             )
-            valid = False
     else:
         raise ValidationError(
             _('%(value)s is not a correction, e.g: 2.1'),
             code='version_wrong_format',
             params={'value': value},
         )
-        valid = False
-
-    return valid
+    return True
 
 
 class ReleaseDocumentExtraParameter(models.Model):
@@ -58,7 +54,6 @@ class ReleaseDocumentExtraParameter(models.Model):
     def to_dict(self):
         """ to_dict """
         instance_dict = model_to_dict(self)
-        instance_dict['release_document_uuid'] = self.release_document.uuid
         instance_dict.pop('release_document')
         instance_dict.pop('id')
         return instance_dict
@@ -150,9 +145,14 @@ class ContentRelease(models.Model):
                 code='base_release_should_be_none',
             )
 
-        if self.base_release and self.base_release.status != 1 and \
-                self.base_release.publish_datetime and \
-                self.base_release.publish_datetime < timezone.now():
+        if self.base_release and \
+            (
+                self.base_release.status != 1 or \
+                    (
+                        self.base_release.publish_datetime and \
+                            self.base_release.publish_datetime > timezone.now()
+                    )
+            ):
             raise ValidationError(
                 _('Base release must to be live'),
                 code='base_release_should_be_none',
