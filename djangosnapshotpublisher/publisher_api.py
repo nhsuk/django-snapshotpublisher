@@ -16,7 +16,7 @@ from django.utils.translation import gettext_lazy as _
 
 from .lazy_encoder import LazyEncoder
 from .models import (ContentRelease, ReleaseDocumentExtraParameter, ReleaseDocument,
-    ContentReleaseExtraParameter)
+                     ContentReleaseExtraParameter)
 
 
 API_TYPES = ['django', 'json']
@@ -104,17 +104,18 @@ class PublisherAPI:
             return self.send_response('success', content_release)
 
     def update_content_release_parameters(self, site_code, release_uuid, parameters,
-            clear_first=False):
+                                          clear_first=False):
+        """ update_content_release_parameters """
         try:
             content_release = ContentRelease.objects.get(
                 site_code=site_code,
                 uuid=release_uuid,
             )
-        
+
             if clear_first:
                 ContentReleaseExtraParameter.objects.filter(
                     content_release=content_release).delete()
-            
+
             if parameters:
                 for key, value in parameters.items():
                     ContentReleaseExtraParameter.objects.update_or_create(
@@ -124,11 +125,12 @@ class PublisherAPI:
                             'content': value,
                         }
                     )
-        
+
         except ContentRelease.DoesNotExist:
             return self.send_response('content_release_does_not_exist')
-    
+
     def get_extra_paramater(self, site_code, release_uuid, key):
+        """ get_extra_paramater """
         try:
             extra_parameter = ContentReleaseExtraParameter.objects.get(
                 content_release__site_code=site_code,
@@ -140,6 +142,7 @@ class PublisherAPI:
             return self.send_response('content_release_extra_parameter_does_not_exist')
 
     def get_extra_paramaters(self, site_code, release_uuid):
+        """ get_extra_paramaters """
         extra_parameters = ContentReleaseExtraParameter.objects.filter(
             content_release__site_code=site_code,
             content_release__uuid=release_uuid,
@@ -178,7 +181,7 @@ class PublisherAPI:
             return self.send_response('success', content_release)
         except ContentRelease.DoesNotExist:
             return self.send_response('content_release_does_not_exist')
-    
+
     def get_content_release_details_query_parameters(self, site_code, parameters):
         """ get_content_release_details_query_parameters """
         if not parameters:
@@ -187,21 +190,25 @@ class PublisherAPI:
         filters = []
         for key, value in parameters.items():
             filters.append(Q(key=key, content=value))
-        
+
         extra_parameter = ContentReleaseExtraParameter.objects.filter(
-            reduce(lambda x, y: x | y, filters))
+            content_release__site_code=site_code,
+        ).filter(reduce(lambda x, y: x | y, filters))
 
         if not extra_parameter.exists():
             return self.send_response('content_release_does_not_exist')
 
         list_by_releases = extra_parameter.values('content_release').annotate(cr_count=Count(
             'content_release'))
-        
+
         if list_by_releases.filter(cr_count=len(parameters)).count() > 1:
             return self.send_response('content_release_more_than_one')
 
         content_release_id = list_by_releases.get(cr_count=len(parameters))['content_release']
-        return self.send_response('success', ContentRelease.objects.get(id=content_release_id))
+        return self.send_response('success', ContentRelease.objects.get(
+            site_code=site_code,
+            id=content_release_id
+        ))
 
     def get_live_content_release(self, site_code, parameters=None):
         """ get_live_content_release """
@@ -296,8 +303,8 @@ class PublisherAPI:
         except ReleaseDocument.DoesNotExist:
             return self.send_response('release_document_does_not_exist')
 
-    def get_document_extra_from_content_release(
-        self, site_code, release_uuid, document_key, content_type='content'):
+    def get_document_extra_from_content_release(self, site_code, release_uuid, document_key,
+                                                content_type='content'):
         """get_document_extra_from_content_release """
         try:
             content_release = ContentRelease.objects.get(site_code=site_code, uuid=release_uuid)
@@ -334,7 +341,8 @@ class PublisherAPI:
                 release_document.save()
 
                 # clear then store parameters
-                ReleaseDocumentExtraParameter.objects.filter(release_document=release_document).delete()
+                ReleaseDocumentExtraParameter.objects.filter(
+                    release_document=release_document).delete()
             except ReleaseDocument.DoesNotExist:
                 release_document = ReleaseDocument(
                     document_key=document_key,
@@ -399,6 +407,7 @@ class PublisherAPI:
             return self.send_response('content_release_does_not_exist')
 
     def compare_content_releases(self, site_code, my_release_uuid, compare_to_release_uuid):
+        """ compare_content_releases """
         try:
             comparison = []
 
@@ -480,14 +489,18 @@ class PublisherAPI:
             ).distinct()
 
             # get extra
-            release_documents = list(added_release_document) + list(removed_release_document) + list(changed_release_document)
+            release_documents = list(added_release_document) + \
+                                list(removed_release_document) + \
+                                list(changed_release_document)
 
             for release_document in release_documents:
                 if release_document['diff'] in ['Added', 'Removed']:
                     extra_parameters = ReleaseDocumentExtraParameter.objects.filter(
                         release_document__document_key=release_document['document_key'],
                         release_document__content_type=release_document['content_type'],
-                        release_document__content_releases=my_content_release.id if release_document['diff'] == 'Added' else compare_to_content_release.id,
+                        release_document__content_releases=my_content_release.id \
+                            if release_document['diff'] == 'Added' else \
+                                compare_to_content_release.id,
                     ).values(
                         'key', 'content'
                     )
@@ -516,13 +529,18 @@ class PublisherAPI:
                     if new_extra_parameters.exists() or old_extra_parameters.exists():
                         release_document.update({
                             'parameters': {
-                                'release_from': {p['key']:p['content'] for p in new_extra_parameters},
-                                'release_compare_to': {p['key']:p['content'] for p in old_extra_parameters},
+                                'release_from': {
+                                    p['key']:p['content'] for p in new_extra_parameters
+                                },
+                                'release_compare_to': {
+                                    p['key']:p['content'] for p in old_extra_parameters
+                                },
                             }
                         })
 
             # sort comparison dict
-            comparison = sorted(release_documents, key=itemgetter('diff', 'content_type', 'document_key'))
+            comparison = sorted(release_documents, key=itemgetter(
+                'diff', 'content_type', 'document_key'))
             return self.send_response('success', comparison)
         except ContentRelease.DoesNotExist:
             return self.send_response('content_release_does_not_exist')

@@ -5,10 +5,11 @@
 from django.contrib import admin
 
 from .models import (ContentRelease, ContentReleaseExtraParameter, ReleaseDocument,
-    ReleaseDocumentExtraParameter)
+                     ReleaseDocumentExtraParameter)
 
 
 class ContentReleaseExtraParameterInline(admin.TabularInline):
+    """ ContentReleaseExtraParameterInline """
     model = ContentReleaseExtraParameter
 
 
@@ -32,6 +33,7 @@ admin.site.register(ContentRelease, ContentReleaseAdmin)
 
 
 class ReleaseDocumentExtraParameterInline(admin.TabularInline):
+    """ ReleaseDocumentExtraParameterInline """
     model = ReleaseDocumentExtraParameter
 
 

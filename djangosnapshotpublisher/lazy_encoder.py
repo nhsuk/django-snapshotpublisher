@@ -9,8 +9,8 @@ from django.core.serializers.json import DjangoJSONEncoder
 class LazyEncoder(DjangoJSONEncoder):
     """ LazyEncoder """
 
-    def default(self, obj):
+    def default(self, o):
         """ default """
-        if isinstance(obj, Promise):
-            return force_text(obj)
-        return super(LazyEncoder, self).default(obj)
+        if isinstance(o, Promise):
+            return force_text(o)
+        return super(LazyEncoder, self).default(o)

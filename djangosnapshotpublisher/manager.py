@@ -33,4 +33,4 @@ class ContentReleaseManager(models.Manager):
         return self.get_queryset().filter(
             uuid=uuid,
             publish_datetime__lt=timezone.now(),
-         ).exists()
+        ).exists()

@@ -41,6 +41,7 @@ def valide_version(value):
 
 
 class ReleaseDocumentExtraParameter(models.Model):
+    """ ReleaseDocumentExtraParameter """
     key = models.SlugField(max_length=255)
     content = models.TextField(null=True)
     release_document = models.ForeignKey(
@@ -77,6 +78,7 @@ class ReleaseDocument(models.Model):
 
 
 class ContentReleaseExtraParameter(models.Model):
+    """ ContentReleaseExtraParameter """
     key = models.SlugField(max_length=255)
     content = models.TextField(null=True)
     content_release = models.ForeignKey(
@@ -137,7 +139,7 @@ class ContentRelease(models.Model):
                     _('Conflict version with frozen or archived release(s), try bigger number'),
                     code='version_conflict_live_releases',
                 )
-        
+
         if self.use_current_live_as_base_release and self.base_release:
             raise ValidationError(
                 _('You cannot set a Base Release if you want to use the current live as the base\
@@ -147,7 +149,7 @@ class ContentRelease(models.Model):
 
         if self.base_release and \
             (
-                self.base_release.status != 1 or \
+                    self.base_release.status != 1 or \
                     (
                         self.base_release.publish_datetime and \
                             self.base_release.publish_datetime > timezone.now()
@@ -172,6 +174,7 @@ class ContentRelease(models.Model):
 
     @classmethod
     def copy_document_live_releases(cls, site_code):
+        """ copy_document_live_releases """
         live_content_release_not_ready = cls.objects.filter(
             site_code=site_code,
             status=1,
@@ -181,8 +184,9 @@ class ContentRelease(models.Model):
 
         for content_release in live_content_release_not_ready:
             content_release.copy_document_release_ref_from_baserelease()
-    
+
     def copy_document_release_ref_from_baserelease(self):
+        """ copy_document_release_ref_from_baserelease """
         base_release = self.base_release
         if self.use_current_live_as_base_release:
             base_release = self.__class__.objects.filter(
@@ -203,11 +207,12 @@ class ContentRelease(models.Model):
         self.save()
 
     def copy(self, overide_data=None):
+        """ copy """
         data = model_to_dict(self, exclude=['id', 'uuid', ])
         release_documents = data.pop('release_documents')
 
         # overide_data
-        if overide_data and type(overide_data) == dict:
+        if overide_data and isinstance(overide_data, dict):
             data.update(overide_data)
 
         new_release = ContentRelease(**data)
