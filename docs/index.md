@@ -36,7 +36,7 @@ PublisherAPI Calls
 PublisherAPI(api_django='django')
 ```
 * paramaters
-    * `api_django` define the response format from api, possible value 'json' & 'django'
+    * `api_django` (string) define the response format from api, possible value 'json' & 'django'
         * `json` the api will return result in json format
         * `django` the api will return result as python dictionary (that can contains django queryset)
 
@@ -56,7 +56,13 @@ Add a new content release for the passed details and returns a unique reference 
     * paramaters (dict, optional) store extra parameters for for a ContentRelease eg: `{'frontend_id': 'v0.1', 'domain': 'test.co.uk'}`
     * based_on_release_uuid (uuid, optional)
     * use_current_live_as_base_release (bool, optional)
-* response [TODO]
+* response:
+```python
+{
+    'status': 'success',
+    'content': <ContentRelease: title1>
+}
+```
 
 ### remove_content_release(site_code, release_uuid)
 ```python
@@ -70,7 +76,12 @@ Removes the content release and any associated artefacts for the given site and 
 * paramaters
     * site_code (string)
     * release_uuid (uuid)
-* response [TODO]
+* response:
+```python
+{
+    'status': 'success'
+}
+```
 
 ### update_content_release
 ```python
@@ -85,7 +96,12 @@ Updates the content release title or/and version. If title or version is None, i
     * title (string, optional)
     * version (string, optional)
     * paramaters (dict, optional)
-* response [TODO]
+* response:
+```python
+{
+    'status': 'success'
+}
+```
 
 ### update_content_release_parameters
 ```python
@@ -99,7 +115,12 @@ Updates the content release extra parameters
     * release_uuid (uuid)
     * paramaters (dict, optional)
     * clear_first (bool, optional) if True, remove all the existing extra parameter for the ContentRelease beofre adding the other one
-* response [TODO]
+* response:
+```python
+{
+    'status': 'success'
+}
+```
 
 ### get_extra_paramater
 ```python
@@ -110,7 +131,13 @@ Get a content release extra parameter
     * site_code (string)
     * release_uuid (uuid)
     * key (string)
-* response [TODO]
+* response:
+```python
+{
+    'status': 'success',
+    'content': 'v0.1'
+}
+```
 
 ### get_extra_paramaters
 ```python
@@ -120,7 +147,16 @@ Get all content release extra parameters
 * paramaters
     * site_code (string)
     * release_uuid (uuid)
-* response [TODO]
+* response:
+```python
+{
+    'status': 'success',
+    'content': <QuerySet [
+        <ContentReleaseExtraParameter: ContentReleaseExtraParameter object (18)>,
+        <ContentReleaseExtraParameter: ContentReleaseExtraParameter object (17)>
+    ]>
+}
+```
 
 ### get_content_release_details
 ```python
@@ -133,8 +169,13 @@ Return details for a given content release.
     * site_code (string)
     * release_uuid (uuid)
     * paramaters (dict, optional)
-* response[TODO]
-    * content_release
+* response:
+```python
+{
+    'status': 'success',
+    'content': <ContentRelease: title1>
+}
+```
 
 ### get_content_release_details_query_parameters
 ```python
@@ -144,7 +185,13 @@ Get release for given paramters
 * paramaters
     * site_code (string)
     * paramaters (dict, optional)
-* response [TODO]
+* response:
+```python
+{
+    'status': 'success',
+    'content': <ContentRelease: title1>
+}
+```
 
 ### get_live_content_release
 ```python
@@ -154,8 +201,22 @@ Returns details for the current live content release.
 * paramaters
     * site_code (string)
     * paramaters (dict, optional)
-* response [TODO]
-    * content_release
+* response:
+```python
+{
+    'status': 'success',
+    'content': {
+        'uuid': '7aa81f8e-3b95-418f-913c-af5838777781',
+        'version': '0.0.1',
+        'title': 'title1',
+        'site_code': 'site1',
+        'status': 'FROZEN',
+        'publish_datetime': '2019-05-28T12:33:00.281Z',
+        'use_current_live_as_base_release': False,
+        'base_release': None
+    }
+}
+```
 
 ### set_live_content_release
 ```python
@@ -165,7 +226,12 @@ Set publish_datetime to now and freeze the given content release.
 * paramaters
     * site_code (string)
     * release_uuid (uuid)
-* response [TODO]
+* response:
+```python
+{
+    'status': 'success'
+}
+```
 
 ### freeze_content_release
 ```python
@@ -176,7 +242,12 @@ Set publish_date to the given publish_date and freeze the given content release.
     * site_code (string)
     * release_uuid (uuid)
     * publish_datetime: format eg: '2018-09-01T13:20:30+0300'
-* response [TODO]
+* response:
+```python
+{
+    'status': 'success'
+}
+```
 
 ### unfreeze_content_release
 ```python
@@ -186,7 +257,12 @@ Set to Pending the given content release if not published.
 * paramaters
     * site_code (string)
     * release_uuid (uuid)
-* response [TODO]
+* response:
+```python
+{
+    'status': 'success'
+}
+```
 
 ### archive_content_release
 ```python
@@ -196,14 +272,28 @@ Set to Archived the given content release if the content release is live and fro
 * paramaters
     * site_code (string)
     * release_uuid (uuid)
-* response [TODO]
+* response:
+```python
+{
+    'status': 'success'
+}
+```
 
 
 ### unarchive_content_release
 ```python
 unarchive_content_release(site_code, release_uuid)
 ```
-Freeze the given content release if the content release is live and archived  (else return an error_msg)
+Unarchived a content release that was archived
+* paramaters
+    * site_code (string)
+    * release_uuid (uuid)
+* response:
+```python
+{
+    'status': 'success'
+}
+```
 
 ### list_content_releases
 ```python
@@ -215,8 +305,16 @@ Returns a list of content releases for the given site (and status if define).
 * paramaters
     * site_code (string)
     * status (int, optional)
-* response [TODO]
-    * [ContentRelease]
+* response:
+```python
+{
+    'status': 'success',
+    'content': <QuerySet [
+        <ContentRelease: title2>,
+        <ContentRelease: title1>
+    ]>
+}
+```
 
 ### get_document_from_content_release
 ```python
@@ -230,12 +328,45 @@ Returns document json content for the given documentKey in a content release.
     * release_uuid (uuid)
     * document_key (string)
     * content_type (string, optional, default='content')
-* response [TODO]
-    * document_json
+* response:
+```python
+{
+    'status': 'success',
+    'content': <ReleaseDocument: content - key1>
+}
+```
+
+### get_document_extra_from_content_release
+```python
+get_document_extra_from_content_release(site_code, release_uuid, document_key, content_type='content')
+```
+Returns document extra parameters json content for the given documentKey in a content release.
+* Description for specifque configuration
+    * SQL: Fetch the ReleaseDocument record containing the json with id documentKey and return the json content field.
+* paramaters
+    * site_code (string)
+    * release_uuid (uuid)
+    * document_key (string)
+    * content_type (string, optional, default='content')
+* response:
+```python
+{
+    'status': 'success',
+    'content': [
+        {
+            'key': 'para2',
+            'content': 'test2'
+        }, {
+            'key': 'para1',
+            'content': 'test1'
+        }
+    ]
+}
+```
 
 ### publish_document_to_content_release
 ```python
-publish_document_to_content_release(site_code, release_uuid, document_json, document_key, content_type='content')
+publish_document_to_content_release(site_code, release_uuid, document_json, document_key, content_type='content', parameters=None)
 ```
 Publishes the given document to a content release. Return create: True if it's a new record else, return false it's it's a record that have been updated.
 * Description for specifque configuration
@@ -246,8 +377,16 @@ Publishes the given document to a content release. Return create: True if it's a
     * document_json (string)
     * document_key (string)
     * content_type (string, optional, default='content')
-* response [TODO]
-    * created
+    * paramaters (dict, optional)
+* response:
+```python
+{
+    'status': 'success',
+    'content': {
+        'created': True
+    }
+}
+```
 
 ### unpublish_document_from_content_release
 ```python
@@ -261,7 +400,12 @@ Unpublish document from the given content release, removing any associated artef
     * release_uuid (uuid)
     * document_key (string)
     * content_type (string, optional, default='content')
-* response [TODO]
+* response:
+```python
+{
+    'status': 'success'
+}
+```
 
 ### delete_document_from_content_release
 ```python
@@ -275,7 +419,12 @@ Remove document from the given content release and won't import the correspondin
     * release_uuid (uuid)
     * document_key (string)
     * content_type (string, optional, default='content')
-* response [TODO]
+* response:
+```python
+{
+    'status': 'success'
+}
+```
 
 ### compare_content_releases
 ```python
@@ -286,4 +435,42 @@ Compare documents for a content release to the documents from another content re
     * site_code (string)
     * my_release_uuid (uuid)
     * compare_to_release_uuid (uuid)
-* response [TODO]
+* response:
+```python
+{
+    'status': 'success',
+    'content': [
+        {
+            'document_key': 'key3',
+            'content_type': 'content',
+            'diff': 'Added',
+            'parameters': {
+                'p2': 'test8',
+                'p1': 'test7'
+            }
+        },{
+            'document_key': 'key2',
+            'content_type': 'content',
+            'diff': 'Changed',
+            'parameters': {
+                'release_from': {
+                    'p2': 'test6',
+                    'p1': 'test5'
+                },
+                'release_compare_to': {
+                    'p2': 'test4',
+                    'p1': 'test3'
+                }
+            }
+        }, {
+            'document_key': 'key1',
+            'content_type': 'content',
+            'diff': 'Removed',
+            'parameters': {
+                'p2': 'test2',
+                'p1': 'test1'
+            }
+        }
+    ]
+}
+```

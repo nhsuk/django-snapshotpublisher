@@ -21,6 +21,16 @@ INSTALLED_APPS = [
 How to use
 ----------
 
+Example
+```python
+...
+from djangosnapshotpublisher.publisher_api import PublisherAPI
+...
+publisher_api = PublisherAPI()
+response = publisher_api.add_content_release('site1', 'title1', '0.1')
+...
+```
+
 Read the [documentation guide][docs-index]
 
 

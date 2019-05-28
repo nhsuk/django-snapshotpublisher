@@ -7,6 +7,10 @@ THIS_DIRECTORY = path.abspath(path.dirname(__file__))
 with open(path.join(THIS_DIRECTORY, 'README.md'), encoding='utf-8') as f:
     LONG_DESCRIPTION = f.read()
 
+INSTALL_REQUIRES = [
+    'Django>=2.2.0,<2.3',
+]
+
 setup(
     name='django-snapshotpublisher',
     version=__VERSION__,
@@ -32,4 +36,5 @@ setup(
         'Topic :: Internet :: WWW/HTTP',
         'Topic :: Internet :: WWW/HTTP :: Dynamic Content',
     ],
+    install_requires=INSTALL_REQUIRES,
 )
