@@ -507,6 +507,20 @@ class PublisherAPITestCase(TestCase):
         self.assertEqual(response['status'], 'success')
         self.assertEqual(response['content'].count(), 1)
 
+        #  List ContentReleases with status, and after a given time.
+        self.publisher_api.set_live_content_release('site1', content_release1.uuid)
+        time_now = timezone.now()
+        response = self.publisher_api.add_content_release('site1', 'title3', '0.0.3')
+        content_release3 = response['content']
+        content_release3.status = 1
+        content_release3.save()
+        self.publisher_api.set_live_content_release('site1', content_release3.uuid)
+
+        response = self.publisher_api.list_content_releases('site1', 1, time_now)
+        self.assertEqual(response['status'], 'success')
+        self.assertEqual(response['content'].count(), 1)
+        self.assertEqual(response['content'][0].title, 'title3')
+
     def test_get_document_from_content_release(self):
         """ unittest for get_document_from_content_release """
 

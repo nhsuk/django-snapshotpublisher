@@ -297,14 +297,16 @@ Unarchived a content release that was archived
 
 ### list_content_releases
 ```python
-list_content_releases(site_code, status=None)
+list_content_releases(site_code, status=None, after=None)
 ```
-Returns a list of content releases for the given site (and status if define).
+Returns a list of content releases for the given site (and status if define). If 'after' is defined, it will
+return releases published/to be published after the given datetime.
 * Description for specifque configuration
-    * SQL: Return Releases matching <siteCode> and <status>
+    * SQL: Return Releases matching <siteCode> and <status> and <published_datetime>
 * paramaters
     * site_code (string)
     * status (int, optional)
+    * after (datetime)
 * response:
 ```python
 {
