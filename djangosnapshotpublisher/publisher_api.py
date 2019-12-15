@@ -281,11 +281,13 @@ class PublisherAPI:
         except ContentRelease.DoesNotExist:
             return self.send_response('content_release_does_not_exist')
 
-    def list_content_releases(self, site_code, status=None):
+    def list_content_releases(self, site_code, status=None, after=None):
         """ list_content_releases """
         content_releases = ContentRelease.objects.filter(site_code=site_code)
         if status:
             content_releases = content_releases.filter(status=status)
+        if after:
+            content_releases = content_releases.filter(publish_datetime__gte=after)
         return self.send_response('success', content_releases)
 
     def get_document_from_content_release(self, site_code, release_uuid, document_key,
