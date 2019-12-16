@@ -361,7 +361,7 @@ class PublisherAPITestCase(TestCase):
         response = self.publisher_api.freeze_content_release(
             'site1',
             uuid.uuid4(),
-            self.datetime_future.strftime(DATETIME_FORMAT),
+            self.datetime_future,
         )
         self.assertEqual(response['status'], 'error')
         self.assertEqual(response['error_code'], 'content_release_does_not_exist')
@@ -375,13 +375,13 @@ class PublisherAPITestCase(TestCase):
             self.datetime_future.strftime('%H:%M:%S %d-%m-%Y'),
         )
         self.assertEqual(response['status'], 'error')
-        self.assertEqual(response['error_code'], 'wrong_datetime_format')
+        self.assertEqual(response['error_code'], 'not_datetime')
 
         #  Publishdatetime in the past
         response = self.publisher_api.freeze_content_release(
             'site1',
             content_release.uuid,
-            self.datetime_past.strftime(DATETIME_FORMAT),
+            self.datetime_past,
         )
         self.assertEqual(response['status'], 'error')
         self.assertEqual(response['error_code'], 'publishdatetime_in_past')
@@ -390,7 +390,7 @@ class PublisherAPITestCase(TestCase):
         response = self.publisher_api.freeze_content_release(
             'site1',
             content_release.uuid,
-            self.datetime_future.strftime(DATETIME_FORMAT),
+            self.datetime_future,
         )
         content_release = ContentRelease.objects.get(uuid=content_release.uuid)
         self.assertEqual(response['status'], 'success')

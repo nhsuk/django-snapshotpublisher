@@ -28,7 +28,7 @@ ERROR_STATUS_CODE = {
     'content_release_does_not_exist': _('ContentRelease doesn\'t exists'),
     'content_release_title_version_not_defined': _('Title or version need to be define'),
     'no_content_release_live': _('There is no live ContentRelease'),
-    'wrong_datetime_format':  _('The datetime format is wrong, eg:2018-09-01T13:20:30+03:00'),
+    'not_datetime':  _('Invalid datetime passed'),
     'publishdatetime_in_past': _('Publish datetime must be in the future'),
     'base_content_release_does_not_exist': _('Base ContentRelease doesn\'t exists'),
     'content_release_publish': _('ContentRelease is published'),
@@ -232,7 +232,6 @@ class PublisherAPI:
     def freeze_content_release(self, site_code, release_uuid, publish_datetime):
         """ freeze_content_release """
         try:
-            publish_datetime = datetime.strptime(publish_datetime, DATETIME_FORMAT)
             if publish_datetime < timezone.now():
                 return self.send_response('publishdatetime_in_past')
             content_release = ContentRelease.objects.get(site_code=site_code, uuid=release_uuid)
@@ -242,8 +241,8 @@ class PublisherAPI:
             return self.send_response('success')
         except ContentRelease.DoesNotExist:
             return self.send_response('content_release_does_not_exist')
-        except ValueError:
-            return self.send_response('wrong_datetime_format')
+        except TypeError:
+            return self.send_response('not_datetime')
 
     def unfreeze_content_release(self, site_code, release_uuid):
         """ unfreeze_content_release """
