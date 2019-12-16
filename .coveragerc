@@ -3,3 +3,7 @@ omit =
     ./djangosnapshotpublisher/tests.py
     ./djangosnapshotpublisher/migrations/*
 source = djangosnapshotpublisher
+
+[report]
+show_missing = True
+
