@@ -150,6 +150,5 @@ SITE_ENV = os.environ.get('SITE_ENV', 'db')
 # Base URL to use when referring to full URLs within the django admin backend -
 # e.g. in notification emails. Don't include '/admin' or a trailing slash
 BASE_URL = 'http://example.com'
-# DEFAULT_FILE_STORAGE = 'storages.backends.azure_storage.AzureStorage'
 
 ENV = os.environ.get('CMS_ENV', 'local')
