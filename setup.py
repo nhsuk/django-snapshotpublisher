@@ -8,7 +8,7 @@ with open(path.join(THIS_DIRECTORY, 'README.md'), encoding='utf-8') as f:
     LONG_DESCRIPTION = f.read()
 
 INSTALL_REQUIRES = [
-    'Django>=2.2.0,<2.3',
+    'Django>=3.1,<3.2',
 ]
 
 setup(
