@@ -288,8 +288,10 @@ class PublisherAPI:
         # except ContentRelease.DoesNotExist:
         #     return self.send_response('content_release_does_not_exist')
 
-    def set_live_content_release(self, site_code, release_uuid):
+    def set_live_content_release(self, site_code, release_uuid, publish_datetime=None):
         """ set_live_content_release """
+        if publish_datetime is not None and publish_datetime < timezone.now():
+            return self.send_response('publishdatetime_in_past')
         content_release = None
         live_content_release = None
         try:
@@ -310,8 +312,11 @@ class PublisherAPI:
             return self.send_response('content_release_already_live')
 
         if content_release.status == 1 and content_release.is_stage:
-            content_release.status = 2
-            content_release.publish_datetime = timezone.now()
+            if publish_datetime is None:
+                content_release.status = 2
+                content_release.publish_datetime = timezone.now()
+            else:
+                content_release.publish_datetime = publish_datetime
             content_release.is_stage = False
             content_release.is_live = True
             content_release.save()
