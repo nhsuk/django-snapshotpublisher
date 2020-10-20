@@ -14,10 +14,17 @@ from django.utils.translation import gettext_lazy as _
 from .manager import ContentReleaseManager
 
 
+# CONTENT_RELEASE_STATUS = (
+#     (0, 'PENDING'),
+#     (1, 'FROZEN'),
+#     (2, 'ARCHIVED'),
+# )
+
 CONTENT_RELEASE_STATUS = (
-    (0, 'PENDING'),
-    (1, 'FROZEN'),
-    (2, 'ARCHIVED'),
+    (0, 'PREVIEW'),
+    (1, 'STAGED'),
+    (2, 'LIVE'),
+    (3, 'ARCHIVED'),
 )
 
 def valide_version(value):
@@ -118,6 +125,7 @@ class ContentRelease(models.Model):
         blank=True,
         related_name='content_releases'
     )
+    is_stage = models.BooleanField(default=False)
     is_live = models.BooleanField(default=False)
 
     objects = ContentReleaseManager()
@@ -127,16 +135,22 @@ class ContentRelease(models.Model):
 
     def save(self, *args, **kwargs):
         """ save """
-        if self.version and valide_version(self.version):
-            is_version_conflict_with_live = self.__class__.objects.filter(
+        if self.version and self.status not in [2, 3] and valide_version(self.version):
+            is_version_conflict = self.__class__.objects.filter(
                 site_code=self.site_code,
-                status__in=[1, 2],
+                status__in=[1, 2, 3],
+                version__gte=self.version,
+            ).exclude(id=self.id)
+
+            is_version_conflict = self.__class__.objects.filter(
+                site_code=self.site_code,
+                status__in=[1, 2, 3],
                 version__gte=self.version,
             ).exclude(id=self.id).exists()
 
-            if not self.is_live and is_version_conflict_with_live:
+            if is_version_conflict:
                 raise ValidationError(
-                    _('Conflict version with frozen or archived release(s), try bigger number'),
+                    _('Conflict version with staged, live or archived release(s), try bigger number'),
                     code='version_conflict_live_releases',
                 )
 
@@ -149,14 +163,14 @@ class ContentRelease(models.Model):
 
         if self.base_release and \
             (
-                    self.base_release.status != 1 or \
+                    self.base_release.status not in [2, 3] or \
                     (
                         self.base_release.publish_datetime and \
                             self.base_release.publish_datetime > timezone.now()
                     )
             ):
             raise ValidationError(
-                _('Base release must to be live'),
+                _('Base release must to be live or archived'),
                 code='base_release_should_be_none',
             )
 
@@ -169,31 +183,39 @@ class ContentRelease(models.Model):
         instance_dict['status'] = self.get_status_display()
         instance_dict.pop('release_documents')
         instance_dict.pop('is_live')
+        instance_dict.pop('is_stage')
         instance_dict.pop('id')
         return instance_dict
 
-    @classmethod
-    def copy_document_live_releases(cls, site_code):
-        """ copy_document_live_releases """
-        live_content_release_not_ready = cls.objects.filter(
-            site_code=site_code,
-            status=1,
-            publish_datetime__lt=timezone.now(),
-            is_live=False,
-        ).order_by('publish_datetime')
-
-        for content_release in live_content_release_not_ready:
-            content_release.copy_document_release_ref_from_baserelease()
+    # @classmethod
+    # def copy_document_stage_releases(cls, site_code):
+    #     """ copy_document_stage_releases """
+    #     print('--OK1--')
+    #     stage_content_release_not_ready = cls.objects.filter(
+    #         site_code=site_code,
+    #         status=1,
+    #         publish_datetime__lt=timezone.now(),
+    #         is_live=False,
+    #     ).order_by('publish_datetime')
+    #     for content_release in stage_content_release_not_ready:
+    #         content_release.copy_document_release_ref_from_baserelease()
 
     def copy_document_release_ref_from_baserelease(self):
         """ copy_document_release_ref_from_baserelease """
         base_release = self.base_release
         if self.use_current_live_as_base_release:
-            base_release = self.__class__.objects.filter(
-                publish_datetime__lt=self.publish_datetime, site_code=self.site_code).order_by(
-                    '-publish_datetime').first()
+            try:
+                base_release = self.__class__.objects.get(
+                    # publish_datetime__lt=self.publish_datetime,
+                    site_code=self.site_code,
+                    is_live=True,
+                    status=2,
+                )
+            except self.__class__.DoesNotExist:
+                pass
 
-        if base_release:
+        try:
+            base_release = self.__class__.objects.get(is_live=True, status=2)
             for release_document in base_release.release_documents.all():
                 try:
                     ReleaseDocument.objects.get(
@@ -203,7 +225,10 @@ class ContentRelease(models.Model):
                     )
                 except ReleaseDocument.DoesNotExist:
                     self.release_documents.add(release_document)
-        self.is_live = True
+        except self.__class__.DoesNotExist:
+            pass
+
+        self.is_stage = True
         self.save()
 
     def copy(self, overide_data=None):

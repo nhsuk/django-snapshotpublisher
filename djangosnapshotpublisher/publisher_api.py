@@ -38,6 +38,13 @@ ERROR_STATUS_CODE = {
     'content_release_more_than_one': _('More than One Content Release'),
     'content_release_extra_parameter_does_not_exist': _(
         'ContentReleaseExtraParameter doesn\'t exist'),
+    'content_release_not_preview': _('This is not a preview release'),
+    'content_release_not_stage': _('This is not a stage release'),
+    'content_release_not_live': _('This is not a live release'),
+    'content_release_stage_alreay_exists': _('Stage Content Release alredy exists'),
+    'content_release_already_stage': _('Content Release alredy staged'),
+    'content_release_already_live': _('Content Release alredy live'),
+    'no_content_release_stage': _('No Stage Content Release'),
 }
 
 
@@ -211,74 +218,166 @@ class PublisherAPI:
             id=content_release_id
         ))
 
+    def get_stage_content_release(self, site_code, parameters=None):
+        """ get_stage_content_release """
+        try:
+            stage_content_release = ContentRelease.objects.stage(site_code)
+            return self.send_response('success', stage_content_release)
+        except ContentRelease.DoesNotExist:
+            return self.send_response('no_content_release_stage')
+
     def get_live_content_release(self, site_code, parameters=None):
         """ get_live_content_release """
-        live_content_release = ContentRelease.objects.live(site_code)
-        if live_content_release:
+        try:
+            live_content_release = ContentRelease.objects.live(site_code)
             return self.send_response('success', live_content_release)
-        return self.send_response('no_content_release_live')
+        except ContentRelease.DoesNotExist:
+            return self.send_response('no_content_release_live')
 
-    def set_live_content_release(self, site_code, release_uuid):
+    def set_stage_content_release(self, site_code, release_uuid):
+        """ set_stage_content_release """
+        content_release = None
+        stage_content_release = None
+        try:
+            content_release = ContentRelease.objects.get(site_code=site_code, uuid=release_uuid)
+        except ContentRelease.DoesNotExist:
+            return self.send_response('content_release_does_not_exist')
+
+        try:
+            stage_content_release = ContentRelease.objects.get(
+                site_code=site_code,
+                uuid=release_uuid,
+                status=1,
+                is_stage=True,
+            )
+            return self.send_response('content_release_stage_alreay_exists')
+        except ContentRelease.DoesNotExist:
+            pass
+
+        try:
+            if content_release == ContentRelease.objects.live(site_code):
+                return self.send_response('content_release_already_live')
+        except ContentRelease.DoesNotExist:
+            pass
+
+        if content_release == stage_content_release:
+            return self.send_response('content_release_already_stage')
+
+        if content_release.status == 0:
+            # content_release.copy_document_stage_releases(site_code)
+            content_release.copy_document_release_ref_from_baserelease()
+            content_release.status = 1
+            content_release.is_stage = True
+            content_release.save()
+            return self.send_response('success')
+        else:
+            return self.send_response('content_release_not_preview')
+
+    def unset_stage_content_release(self, site_code, release_uuid):
+        pass
+        # """ set_stage_content_release """
+        # try:
+        #     content_release = ContentRelease.objects.get(site_code=site_code, uuid=release_uuid)
+        #     if content_release.status == 0 and content_release.is_stage:
+        #         content_release.copy_document_stage_releases(site_code)
+        #         content_release.status = 1
+        #         content_release.save()
+        #         return self.send_response('success')
+        #     else:
+        #         return self.send_response('content_release_not_preview')
+        # except ContentRelease.DoesNotExist:
+        #     return self.send_response('content_release_does_not_exist')
+
+    def set_live_content_release(self, site_code, release_uuid, publish_datetime=None):
         """ set_live_content_release """
+        if publish_datetime is not None and publish_datetime < timezone.now():
+            return self.send_response('publishdatetime_in_past')
+        content_release = None
+        live_content_release = None
         try:
             content_release = ContentRelease.objects.get(site_code=site_code, uuid=release_uuid)
-            content_release.status = 1
-            content_release.publish_datetime = timezone.now()
-            content_release.save()
-            return self.send_response('success')
         except ContentRelease.DoesNotExist:
             return self.send_response('content_release_does_not_exist')
 
-    def freeze_content_release(self, site_code, release_uuid, publish_datetime):
-        """ freeze_content_release """
         try:
-            if publish_datetime < timezone.now():
-                return self.send_response('publishdatetime_in_past')
-            content_release = ContentRelease.objects.get(site_code=site_code, uuid=release_uuid)
-            content_release.status = 1
-            content_release.publish_datetime = publish_datetime
-            content_release.save()
-            return self.send_response('success')
+            live_content_release = ContentRelease.objects.get(
+                site_code=site_code,
+                status=2,
+                is_live=True,
+            )
         except ContentRelease.DoesNotExist:
-            return self.send_response('content_release_does_not_exist')
-        except TypeError:
-            return self.send_response('not_datetime')
+            pass
 
-    def unfreeze_content_release(self, site_code, release_uuid):
-        """ unfreeze_content_release """
-        try:
-            content_release = ContentRelease.objects.get(site_code=site_code, uuid=release_uuid)
-            if ContentRelease.objects.is_published(release_uuid):
-                return self.send_response('content_release_publish')
-            content_release.status = 0
-            content_release.save()
-            return self.send_response('success')
-        except ContentRelease.DoesNotExist:
-            return self.send_response('content_release_does_not_exist')
+        if content_release == live_content_release:
+            return self.send_response('content_release_already_live')
 
-    def archive_content_release(self, site_code, release_uuid):
-        """ archive_content_release """
-        try:
-            content_release = ContentRelease.objects.get(site_code=site_code, uuid=release_uuid)
-            if not ContentRelease.objects.is_published(release_uuid):
-                return self.send_response('content_release_not_publish')
-            content_release.status = 2
+        if content_release.status == 1 and content_release.is_stage:
+            if publish_datetime is None:
+                content_release.status = 2
+                content_release.publish_datetime = timezone.now()
+            else:
+                content_release.publish_datetime = publish_datetime
+            content_release.is_stage = False
+            content_release.is_live = True
             content_release.save()
+            if live_content_release:
+                live_content_release.status = 3
+                live_content_release.is_live = False
+                live_content_release.save()
             return self.send_response('success')
-        except ContentRelease.DoesNotExist:
-            return self.send_response('content_release_does_not_exist')
+        else:
+            return self.send_response('content_release_not_stage')
 
-    def unarchive_content_release(self, site_code, release_uuid):
-        """ unarchive_content_release """
-        try:
-            content_release = ContentRelease.objects.get(site_code=site_code, uuid=release_uuid)
-            if not ContentRelease.objects.is_published(release_uuid):
-                return self.send_response('content_release_not_publish')
-            content_release.status = 1
-            content_release.save()
-            return self.send_response('success')
-        except ContentRelease.DoesNotExist:
-            return self.send_response('content_release_does_not_exist')
+    # def freeze_content_release(self, site_code, release_uuid, publish_datetime):
+    #     """ freeze_content_release """
+    #     try:
+    #         if publish_datetime < timezone.now():
+    #             return self.send_response('publishdatetime_in_past')
+    #         content_release = ContentRelease.objects.get(site_code=site_code, uuid=release_uuid)
+    #         content_release.status = 1
+    #         content_release.publish_datetime = publish_datetime
+    #         content_release.save()
+    #         return self.send_response('success')
+    #     except ContentRelease.DoesNotExist:
+    #         return self.send_response('content_release_does_not_exist')
+    #     except TypeError:
+    #         return self.send_response('not_datetime')
+
+    # def unfreeze_content_release(self, site_code, release_uuid):
+    #     """ unfreeze_content_release """
+    #     try:
+    #         content_release = ContentRelease.objects.get(site_code=site_code, uuid=release_uuid)
+    #         if ContentRelease.objects.is_published(release_uuid):
+    #             return self.send_response('content_release_publish')
+    #         content_release.status = 0
+    #         content_release.save()
+    #         return self.send_response('success')
+    #     except ContentRelease.DoesNotExist:
+    #         return self.send_response('content_release_does_not_exist')
+
+    # def archive_content_release(self, site_code, release_uuid):
+    #     """ archive_content_release """
+    #     try:
+    #         content_release = ContentRelease.objects.get(site_code=site_code, uuid=release_uuid)
+    #         if not ContentRelease.objects.is_published(release_uuid):
+    #             return self.send_response('content_release_not_publish')
+    #         content_release.status = 2
+    #         content_release.save()
+    #         return self.send_response('success')
+    #     except ContentRelease.DoesNotExist:
+    #         return self.send_response('content_release_does_not_exist')
+
+    # def unarchive_content_release(self, site_code, release_uuid):
+    #     """ unarchive_content_release """
+    #     try:
+    #         content_release = ContentRelease.objects.get(site_code=site_code, uuid=release_uuid)
+    #         if not ContentRelease.objects.is_published(release_uuid):
+    #             return self.send_response('content_release_not_publish')
+    #         content_release.status = 1
+    #         content_release.save()
+    #         return self.send_response('success')
+    #     except ContentRelease.DoesNotExist:
+    #         return self.send_response('content_release_does_not_exist')
 
     def list_content_releases(self, site_code, status=None, after=None):
         """ list_content_releases """

@@ -123,7 +123,7 @@ class ContentReleaseTestCase(TestCase):
             self.assertEqual('base_release_should_be_none', v_e.code)
 
         # set base_release for a live base_release
-        content_release1.status = 1
+        content_release1.status = 2
         content_release1.publish_datetime = timezone.now() - timezone.timedelta(minutes=10)
         content_release1.save()
 
@@ -138,6 +138,21 @@ class ContentReleaseTestCase(TestCase):
         except ValidationError as v_e:
             self.assertEqual('base_release_should_be_none', v_e.code)
 
+    def test_set_stage(self):
+        """ unittest when content release go live """
+        publisher_api = PublisherAPI(api_type='django')
+        response = publisher_api.add_content_release('site1', 'title1', '0.1')
+        content_release = response['content']
+        document_json = json.dumps({'page_title': 'Test'})
+        response = publisher_api.publish_document_to_content_release(
+            'site1',
+            content_release.uuid,
+            document_json,
+            'key1',
+        )
+        publisher_api.set_stage_content_release('site1', content_release.uuid)
+        publisher_api.get_stage_content_release('site1')
+
     def test_set_live(self):
         """ unittest when content release go live """
         publisher_api = PublisherAPI(api_type='django')
@@ -150,6 +165,10 @@ class ContentReleaseTestCase(TestCase):
             document_json,
             'key1',
         )
+        # set stage
+        publisher_api.set_stage_content_release('site1', content_release.uuid)
+        publisher_api.get_stage_content_release('site1')
+        # set live
         publisher_api.set_live_content_release('site1', content_release.uuid)
         publisher_api.get_live_content_release('site1')
 
@@ -171,6 +190,8 @@ class ContentReleaseTestCase(TestCase):
             document_json3,
             'key2',
         )
+        publisher_api.set_stage_content_release('site1', content_release2.uuid)
+        publisher_api.get_stage_content_release('site1')
         publisher_api.set_live_content_release('site1', content_release2.uuid)
         publisher_api.get_live_content_release('site1')
         content_release2 = ContentRelease.objects.get(uuid=content_release2.uuid)
@@ -195,6 +216,7 @@ class ContentReleaseTestCase(TestCase):
             document_json4,
             'key2',
         )
+        publisher_api.set_stage_content_release('site1', content_release3.uuid)
         publisher_api.set_live_content_release('site1', content_release3.uuid)
 
         # publish to content release and get the last one and check in the copy works
@@ -208,8 +230,9 @@ class ContentReleaseTestCase(TestCase):
             document_json5,
             'key1',
         )
+        publisher_api.set_stage_content_release('site1', content_release4.uuid)
+        publisher_api.get_stage_content_release('site1')
         publisher_api.set_live_content_release('site1', content_release4.uuid)
-
         publisher_api.get_live_content_release('site1')
         content_release3 = ContentRelease.objects.get(uuid=content_release3.uuid)
         self.assertEqual(content_release3.release_documents.count(), 2)
@@ -233,7 +256,7 @@ class ContentReleaseTestCase(TestCase):
         self.assertEqual(json.loads(release_document1.document_json), {'page_title': 'Test5'})
         self.assertEqual(json.loads(release_document2.document_json), {'page_title': 'Test4'})
 
-        self.assertEqual(ContentRelease.objects.lives('site1').count(), 4)
+        self.assertEqual(ContentRelease.objects.archived('site1').count(), 3)
 
     def test_copy_release(self):
         """ unittest copy ContentRelease """
