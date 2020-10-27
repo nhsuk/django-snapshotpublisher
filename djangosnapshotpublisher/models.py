@@ -154,15 +154,13 @@ class ContentRelease(models.Model):
                     code='version_conflict_live_releases',
                 )
 
-        # NOTE: commented out to allow setting of the base release when a release is staged so that we maintain
-        # a record of what release was used to base this release on. Validation should be move to the creatio
-        # form.
-        # if self.use_current_live_as_base_release and self.base_release:
-        #     raise ValidationError(
-        #         _('You cannot set a Base Release if you want to use the current live as the base\
-        #              release'),
-        #         code='base_release_should_be_none',
-        #     )
+        # NOTE: Validation now should only be performed on preview releases.
+        if self.status == 0 and self.use_current_live_as_base_release and self.base_release:
+            raise ValidationError(
+                _('You cannot set a Base Release if you want to use the current live as the base\
+                     release'),
+                code='base_release_should_be_none',
+            )
 
         if self.base_release and \
             (

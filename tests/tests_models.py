@@ -130,13 +130,20 @@ class ContentReleaseTestCase(TestCase):
         content_release2.base_release = content_release1
         content_release2.save()
 
-        # use_current_live_as_base_release True and base_release not None
+        # use_current_live_as_base_release True and base_release not None - should receive validation error
+        # only when release status is preview.
         try:
+            content_release2.status = 0
             content_release2.use_current_live_as_base_release = True
             content_release2.save()
             self.fail('Validation Error should be raised')
         except ValidationError as v_e:
             self.assertEqual('base_release_should_be_none', v_e.code)
+
+        content_release2.status = 1
+        content_release2.use_current_live_as_base_release = True
+        content_release2.save()
+
 
     def test_set_stage(self):
         """ unittest when content release go live """
