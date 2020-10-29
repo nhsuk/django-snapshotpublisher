@@ -254,10 +254,8 @@ class PublisherAPI:
         except ContentRelease.DoesNotExist:
             pass
 
-        live_content_release = None
         try:
-            live_content_release = ContentRelease.objects.live(site_code)
-            if content_release == live_content_release:
+            if content_release == ContentRelease.objects.live(site_code):
                 return self.send_response('content_release_already_live')
         except ContentRelease.DoesNotExist:
             pass
@@ -270,8 +268,6 @@ class PublisherAPI:
             content_release.copy_document_release_ref_from_baserelease()
             content_release.status = 1
             content_release.is_stage = True
-            if content_release.use_current_live_as_base_release or content_release.base_release == None:
-                content_release.base_release = live_content_release
             content_release.save()
             return self.send_response('success')
         else:

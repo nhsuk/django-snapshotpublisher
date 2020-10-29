@@ -203,10 +203,9 @@ class ContentRelease(models.Model):
 
     def copy_document_release_ref_from_baserelease(self):
         """ copy_document_release_ref_from_baserelease """
-        base_release = self.base_release
         if self.use_current_live_as_base_release:
             try:
-                base_release = self.__class__.objects.get(
+                self.base_release = self.__class__.objects.get(
                     # publish_datetime__lt=self.publish_datetime,
                     site_code=self.site_code,
                     is_live=True,
@@ -216,8 +215,8 @@ class ContentRelease(models.Model):
                 pass
 
         try:
-            base_release = self.__class__.objects.get(is_live=True, status=2)
-            for release_document in base_release.release_documents.all():
+            self.base_release = self.__class__.objects.get(is_live=True, status=2)
+            for release_document in self.base_release.release_documents.all():
                 try:
                     ReleaseDocument.objects.get(
                         document_key=release_document.document_key,
