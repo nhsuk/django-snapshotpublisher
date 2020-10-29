@@ -229,6 +229,29 @@ class ContentRelease(models.Model):
             pass
 
         self.is_stage = True
+        self.status = 1
+        self.save()
+
+    def remove_document_release_ref_from_baserelease(self):
+        """ remove_document_release_ref_from_baserelease """
+        if self.base_release:
+            try:
+                for release_document in self.base_release.release_documents.all():
+                    try:
+                        ReleaseDocument.objects.get(
+                            document_key=release_document.document_key,
+                            content_type=release_document.content_type,
+                            content_releases=self,
+                        )
+                        self.release_documents.remove(release_document)
+                    except ReleaseDocument.DoesNotExist:
+                        pass
+            except self.__class__.DoesNotExist:
+                pass
+
+        self.base_release = None
+        self.is_stage = False
+        self.status = 0
         self.save()
 
     def copy(self, overide_data=None):
