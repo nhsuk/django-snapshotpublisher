@@ -14,12 +14,6 @@ from django.utils.translation import gettext_lazy as _
 from .manager import ContentReleaseManager
 
 
-# CONTENT_RELEASE_STATUS = (
-#     (0, 'PENDING'),
-#     (1, 'FROZEN'),
-#     (2, 'ARCHIVED'),
-# )
-
 CONTENT_RELEASE_STATUS = (
     (0, 'PREVIEW'),
     (1, 'STAGED'),
@@ -188,25 +182,11 @@ class ContentRelease(models.Model):
         instance_dict.pop('id')
         return instance_dict
 
-    # @classmethod
-    # def copy_document_stage_releases(cls, site_code):
-    #     """ copy_document_stage_releases """
-    #     print('--OK1--')
-    #     stage_content_release_not_ready = cls.objects.filter(
-    #         site_code=site_code,
-    #         status=1,
-    #         publish_datetime__lt=timezone.now(),
-    #         is_live=False,
-    #     ).order_by('publish_datetime')
-    #     for content_release in stage_content_release_not_ready:
-    #         content_release.copy_document_release_ref_from_baserelease()
-
     def copy_document_release_ref_from_baserelease(self):
         """ copy_document_release_ref_from_baserelease """
         if self.use_current_live_as_base_release:
             try:
                 self.base_release = self.__class__.objects.get(
-                    # publish_datetime__lt=self.publish_datetime,
                     site_code=self.site_code,
                     is_live=True,
                     status=2,
@@ -224,7 +204,32 @@ class ContentRelease(models.Model):
                         content_releases=self,
                     )
                 except ReleaseDocument.DoesNotExist:
-                    self.release_documents.add(release_document)
+                    try:
+                        ReleaseDocumentExtraParameter.objects.get(
+                            key='have_dynamic_elements',
+                            content='True',
+                            release_document=release_document,
+                        )
+                        new_release_document = ReleaseDocument.objects.get(pk=release_document.pk)
+                        new_release_document.pk = None
+                        new_release_document.save()
+                        release_document_extra_parameters = ReleaseDocumentExtraParameter.objects.filter(
+                            release_document=release_document,
+                        )
+                        for release_document_extra_parameter in release_document_extra_parameters:
+                            new_release_document_extra_parameter = ReleaseDocumentExtraParameter.objects.get(pk=release_document_extra_parameter.pk)
+                            new_release_document_extra_parameter.pk = None
+                            new_release_document_extra_parameter.release_document = new_release_document
+                            new_release_document_extra_parameter.save()
+                        release_document_extra_parameter = ReleaseDocumentExtraParameter(
+                            key='stage_dynamic_elements',
+                            content='True',
+                            release_document=release_document,
+                        )
+                        release_document_extra_parameter.save()
+                        self.release_documents.add(new_release_document)
+                    except ReleaseDocumentExtraParameter.DoesNotExist:
+                        self.release_documents.add(release_document)
         except self.__class__.DoesNotExist:
             pass
 
@@ -235,6 +240,7 @@ class ContentRelease(models.Model):
     def remove_document_release_ref_from_baserelease(self):
         """ remove_document_release_ref_from_baserelease """
         if self.base_release:
+            # remove document ref that exists in live release
             try:
                 for release_document in self.base_release.release_documents.all():
                     try:
@@ -248,6 +254,12 @@ class ContentRelease(models.Model):
                         pass
             except self.__class__.DoesNotExist:
                 pass
+        
+            # remove document copy from live release
+            dynamic_documents = self.release_documents.filter(
+                parameters__key='stage_dynamic_elements',
+                parameters__content='True',
+            ).delete()
 
         self.base_release = None
         self.is_stage = False
