@@ -254,10 +254,8 @@ class PublisherAPI:
         except ContentRelease.DoesNotExist:
             pass
 
-        live_content_release = None
         try:
-            live_content_release = ContentRelease.objects.live(site_code)
-            if content_release == live_content_release:
+            if content_release == ContentRelease.objects.live(site_code):
                 return self.send_response('content_release_already_live')
         except ContentRelease.DoesNotExist:
             pass
@@ -266,31 +264,19 @@ class PublisherAPI:
             return self.send_response('content_release_already_stage')
 
         if content_release.status == 0:
-            # content_release.copy_document_stage_releases(site_code)
             content_release.copy_document_release_ref_from_baserelease()
-            content_release.status = 1
-            content_release.is_stage = True
-            if content_release.use_current_live_as_base_release or content_release.base_release == None:
-                content_release.base_release = live_content_release
-            content_release.save()
             return self.send_response('success')
         else:
             return self.send_response('content_release_not_preview')
 
     def unset_stage_content_release(self, site_code, release_uuid):
-        pass
-        # """ set_stage_content_release """
-        # try:
-        #     content_release = ContentRelease.objects.get(site_code=site_code, uuid=release_uuid)
-        #     if content_release.status == 0 and content_release.is_stage:
-        #         content_release.copy_document_stage_releases(site_code)
-        #         content_release.status = 1
-        #         content_release.save()
-        #         return self.send_response('success')
-        #     else:
-        #         return self.send_response('content_release_not_preview')
-        # except ContentRelease.DoesNotExist:
-        #     return self.send_response('content_release_does_not_exist')
+        # unset_stage_content_release
+        try:
+            stage_content_release = ContentRelease.objects.stage(site_code)
+            stage_content_release.remove_document_release_ref_from_baserelease()
+            return self.send_response('success')
+        except ContentRelease.DoesNotExist:
+            return self.send_response('no_content_release_stage')
 
     def set_live_content_release(self, site_code, release_uuid, publish_datetime=None):
         """ set_live_content_release """
