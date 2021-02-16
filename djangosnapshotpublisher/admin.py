@@ -40,8 +40,8 @@ class ReleaseDocumentExtraParameterInline(admin.TabularInline):
 class ReleaseDocumentAdmin(admin.ModelAdmin):
     """ ReleaseDocumentAdmin """
     ordering = ['content_type', 'document_key']
-    list_display = ('content_type', 'document_key', )
-    list_filter = ('content_type', 'document_key', 'content_releases', )
+    list_display = ('content_type', 'document_key', 'deleted',)
+    list_filter = ('content_type', 'content_releases', 'document_key',)
     inlines = [
         ReleaseDocumentExtraParameterInline,
     ]
